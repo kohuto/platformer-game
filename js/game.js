@@ -12,6 +12,13 @@ const ENEMY_BULLET_SPEED = 180;
 const DASH_SPEED = 620;
 const DASH_DURATION = 150;
 const DASH_COOLDOWN = 950;
+const TIME_CHALLENGE_SECONDS = 300;
+const PROGRESS_STORAGE_KEY = "platformer-game-progress";
+const DIFFICULTIES = {
+  easy: { label: "LEHKÁ", startingLives: 3, hurtDelay: 1200, bossLives: 9 },
+  normal: { label: "NORMÁLNÍ", startingLives: 3, hurtDelay: 900, bossLives: 12 },
+  hard: { label: "TĚŽKÁ", startingLives: 2, hurtDelay: 650, bossLives: 15 },
+};
 
 function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
   const context = scene.sound?.context;
@@ -38,12 +45,27 @@ function formatDuration(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+function loadProgress() {
+  try {
+    return JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY)) ?? { wins: 0, bestTime: null, unlockedSector: 1 };
+  } catch (_error) {
+    return { wins: 0, bestTime: null, unlockedSector: 1 };
+  }
+}
+
+function saveProgress(progress) {
+  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+}
+
 class MenuScene extends Phaser.Scene {
   constructor() {
     super("MenuScene");
   }
 
   create() {
+    this.selectedDifficulty = "normal";
+    this.selectedSector = 1;
+    this.progress = loadProgress();
     this.cameras.main.setBackgroundColor("#071126");
     this.add.circle(110, 90, 72, 0x22d3ee, 0.2);
     this.add.circle(850, 460, 130, 0xa78bfa, 0.16);
@@ -92,23 +114,39 @@ class MenuScene extends Phaser.Scene {
       color: "#e2e8f0",
     }).setOrigin(0.5);
 
-    const startButton = this.add.rectangle(480, 455, 280, 64, 0x22d3ee)
+    const startButton = this.add.rectangle(480, 480, 280, 56, 0x22d3ee)
       .setStrokeStyle(3, 0xa5f3fc)
       .setInteractive({ useHandCursor: true });
-    const startLabel = this.add.text(480, 455, "ZAČÍT HRU", {
+    const startLabel = this.add.text(480, 480, "ZAČÍT HRU", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "24px",
       fontStyle: "bold",
       color: "#082f49",
     }).setOrigin(0.5);
 
-    const startGame = () => this.scene.start("MainScene");
+    const startGame = () => this.scene.start("MainScene", {
+      difficulty: this.selectedDifficulty,
+      sector: this.selectedSector,
+    });
     startButton.on("pointerover", () => startButton.setFillStyle(0x67e8f9));
     startButton.on("pointerout", () => startButton.setFillStyle(0x22d3ee));
     startButton.on("pointerdown", startGame);
     startLabel.setInteractive({ useHandCursor: true }).on("pointerdown", startGame);
 
-    this.add.text(480, 520, "Pro spuštění můžeš také stisknout Enter nebo mezerník", {
+    this.add.text(480, 420, "Obtížnost:  1 Lehká  ·  2 Normální  ·  3 Těžká  ·  S: sektor", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      color: "#bae6fd",
+    }).setOrigin(0.5);
+
+    this.difficultyText = this.add.text(480, 445, "Vybráno: NORMÁLNÍ · SEKTOR 1", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      fontStyle: "bold",
+      color: "#facc15",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 530, `Rekord: ${this.progress.bestTime === null ? "zatím žádný" : formatDuration(this.progress.bestTime)}  ·  Dokončení: ${this.progress.wins}  ·  Sektor 2: ${this.progress.unlockedSector >= 2 ? "odemčen" : "zamčen"}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "15px",
       color: "#cbd5e1",
@@ -116,6 +154,22 @@ class MenuScene extends Phaser.Scene {
 
     this.input.keyboard.once("keydown-ENTER", startGame);
     this.input.keyboard.once("keydown-SPACE", startGame);
+    ["ONE", "TWO", "THREE"].forEach((key, index) => {
+      this.input.keyboard.on(`keydown-${key}`, () => {
+        this.selectedDifficulty = ["easy", "normal", "hard"][index];
+        this.updateSelectionText();
+      });
+    });
+    this.input.keyboard.on("keydown-S", () => {
+      if (this.progress.unlockedSector >= 2) {
+        this.selectedSector = this.selectedSector === 1 ? 2 : 1;
+        this.updateSelectionText();
+      }
+    });
+  }
+
+  updateSelectionText() {
+    this.difficultyText.setText(`Vybráno: ${DIFFICULTIES[this.selectedDifficulty].label} · SEKTOR ${this.selectedSector}`);
   }
 }
 
@@ -128,6 +182,8 @@ class GameOverScene extends Phaser.Scene {
     this.finalScore = data.score ?? 0;
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
+    this.difficulty = data.difficulty ?? "normal";
+    this.sector = data.sector ?? 1;
   }
 
   create() {
@@ -148,13 +204,13 @@ class GameOverScene extends Phaser.Scene {
       color: "#fef3c7",
     }).setOrigin(0.5);
 
-    this.add.text(480, 242, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}`, {
+    this.add.text(480, 242, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "19px",
       color: "#fed7aa",
     }).setOrigin(0.5);
 
-    const restartGame = () => this.scene.start("MainScene");
+    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
     const returnToMenu = () => this.scene.start("MenuScene");
 
     this.createButton(480, 310, "RESTART HRY", 0x22c55e, 0x052e16, restartGame);
@@ -199,6 +255,8 @@ class VictoryScene extends Phaser.Scene {
     this.finalScore = data.score ?? 0;
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
+    this.difficulty = data.difficulty ?? "normal";
+    this.sector = data.sector ?? 1;
   }
 
   create() {
@@ -230,13 +288,21 @@ class VictoryScene extends Phaser.Scene {
       color: "#fde68a",
     }).setOrigin(0.5);
 
-    this.add.text(480, 282, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}`, {
+    const challengeStatus = this.finalTime <= TIME_CHALLENGE_SECONDS ? "Časová výzva splněna!" : "Časová výzva: zkus to pod 5:00";
+    this.add.text(480, 282, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "18px",
       color: "#bae6fd",
     }).setOrigin(0.5);
 
-    const restartGame = () => this.scene.start("MainScene");
+    this.add.text(480, 305, challengeStatus, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      fontStyle: "bold",
+      color: this.finalTime <= TIME_CHALLENGE_SECONDS ? "#86efac" : "#cbd5e1",
+    }).setOrigin(0.5);
+
+    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
     const returnToMenu = () => this.scene.start("MenuScene");
 
     this.createButton(480, 355, "HRÁT ZNOVU", 0x22d3ee, 0x083344, restartGame);
@@ -341,6 +407,12 @@ class MainScene extends Phaser.Scene {
     super("MainScene");
   }
 
+  init(data) {
+    this.difficulty = data.difficulty ?? "normal";
+    this.sector = data.sector ?? 1;
+    this.difficultySettings = DIFFICULTIES[this.difficulty] ?? DIFFICULTIES.normal;
+  }
+
   create() {
     this.createTextures();
     this.createWorld();
@@ -351,8 +423,10 @@ class MainScene extends Phaser.Scene {
     this.createCollectibles();
     this.createHealthPickups();
     this.createAmmoPickups();
+    this.createWeaponPickups();
     this.createHazards();
     this.createBarriers();
+    this.createLogicGates();
     this.createCheckpoints();
     this.createEnemies();
     this.createBoss();
@@ -569,6 +643,17 @@ class MainScene extends Phaser.Scene {
     graphics.generateTexture("barrier", 56, 96);
     graphics.clear();
 
+    graphics.fillStyle(0x111827);
+    graphics.fillRoundedRect(0, 0, 34, 24, 5);
+    graphics.fillStyle(0x0e7490);
+    graphics.fillRoundedRect(3, 3, 28, 18, 4);
+    graphics.fillStyle(0x67e8f9);
+    graphics.fillCircle(17, 12, 6);
+    graphics.fillStyle(0xf8fafc);
+    graphics.fillCircle(15, 10, 2);
+    graphics.generateTexture("switch", 34, 24);
+    graphics.clear();
+
     graphics.fillStyle(0x020617);
     graphics.fillRoundedRect(0, 3, 29, 9, 3);
     graphics.fillStyle(0x64748b);
@@ -674,7 +759,7 @@ class MainScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
 
-    this.add.text(22, 20, "NEONOVÝ SEKTOR", {
+    this.add.text(22, 20, this.sector === 2 ? "SEKTOR 2: VÝZVA" : "NEONOVÝ SEKTOR", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
@@ -764,12 +849,14 @@ class MainScene extends Phaser.Scene {
       .setDepth(2);
     this.walkCycle = 0;
     this.jumpsRemaining = 2;
-    this.lives = MAX_LIVES;
+    this.lives = this.difficultySettings.startingLives;
     this.kills = 0;
     this.startedAt = this.time.now;
     this.isDashing = false;
     this.dashEndsAt = 0;
     this.nextDashAt = 0;
+    this.weaponMode = "basic";
+    this.weaponEndsAt = 0;
     this.respawnPoint = { x: 100, y: 300 };
     this.isHurt = false;
     this.gameOver = false;
@@ -925,6 +1012,7 @@ class MainScene extends Phaser.Scene {
     this.score += 1;
     this.scoreText.setText(`Mince: ${this.score}`);
     playTone(this, 740, 0.09, "triangle", 0.035);
+    this.createBurst(coin.x, coin.y, 0xfacc15);
 
     this.checkVictory();
   }
@@ -934,7 +1022,15 @@ class MainScene extends Phaser.Scene {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
       playTone(this, 880, 0.28, "sine", 0.06);
-      this.scene.start("VictoryScene", this.getRunStats());
+      const progress = loadProgress();
+      progress.wins += 1;
+      progress.unlockedSector = 2;
+      const stats = this.getRunStats();
+      if (progress.bestTime === null || stats.time < progress.bestTime) {
+        progress.bestTime = stats.time;
+      }
+      saveProgress(progress);
+      this.scene.start("VictoryScene", stats);
     }
   }
 
@@ -986,24 +1082,45 @@ class MainScene extends Phaser.Scene {
     }
 
     const direction = this.player.flipX ? -1 : 1;
-    const bullet = this.bullets.create(
-      this.player.x + direction * 38,
-      this.player.y + 4,
-      "bullet",
-    );
+    const shotOffsets = this.weaponMode === "spread" ? [-95, 0, 95] : [0];
+    shotOffsets.forEach((verticalSpeed) => {
+      const bullet = this.bullets.create(
+        this.player.x + direction * 38,
+        this.player.y + 4,
+        "bullet",
+      );
+      bullet.body.allowGravity = false;
+      bullet.setVelocity(direction * BULLET_SPEED, verticalSpeed);
 
-    bullet.body.allowGravity = false;
-    bullet.setVelocityX(direction * BULLET_SPEED);
+      this.time.delayedCall(1200, () => {
+        if (bullet.active) {
+          bullet.destroy();
+        }
+      });
+    });
     this.ammo -= 1;
     this.updateAmmoText();
     playTone(this, 260, 0.06, "square", 0.03);
     this.lastShotAt = time;
 
-    this.time.delayedCall(1200, () => {
-      if (bullet.active) {
-        bullet.destroy();
-      }
+  }
+
+  createWeaponPickups() {
+    this.weaponPickups = this.physics.add.staticGroup();
+    [[1200, 370], [2700, 210], [4470, 170]].forEach(([x, y]) => {
+      const pickup = this.weaponPickups.create(x, y, "ammoPickup");
+      pickup.setTint(0xa78bfa);
+      pickup.setScale(1.15);
     });
+    this.physics.add.overlap(this.player, this.weaponPickups, this.collectWeapon, null, this);
+  }
+
+  collectWeapon(_player, pickup) {
+    pickup.disableBody(true, true);
+    this.weaponMode = "spread";
+    this.weaponEndsAt = this.time.now + 10000;
+    playTone(this, 780, 0.22, "triangle", 0.06);
+    this.createBurst(pickup.x, pickup.y, 0xa78bfa);
   }
 
   createAmmoPickups() {
@@ -1044,6 +1161,8 @@ class MainScene extends Phaser.Scene {
       score: this.score,
       kills: this.kills,
       time: Math.floor((this.time.now - this.startedAt) / 1000),
+      difficulty: this.difficulty,
+      sector: this.sector,
     };
   }
 
@@ -1056,11 +1175,32 @@ class MainScene extends Phaser.Scene {
     if (remaining === 0) {
       this.dashText.setText("Dash: připraven");
       this.dashText.setColor("#a5f3fc");
-      return;
+    } else {
+      this.dashText.setText(`Dash: ${(remaining / 1000).toFixed(1)} s`);
+      this.dashText.setColor("#94a3b8");
     }
 
-    this.dashText.setText(`Dash: ${(remaining / 1000).toFixed(1)} s`);
-    this.dashText.setColor("#94a3b8");
+    if (this.weaponMode === "spread") {
+      this.ammoText.setText(`Náboje: ${this.ammo} / ${MAX_AMMO}  ·  Trojstřela: ${Math.max(0, Math.ceil((this.weaponEndsAt - time) / 1000))} s`);
+    } else {
+      this.updateAmmoText();
+    }
+  }
+
+  createBurst(x, y, color) {
+    for (let index = 0; index < 6; index += 1) {
+      const particle = this.add.circle(x, y, 3, color, 0.9).setDepth(5);
+      const angle = (Math.PI * 2 * index) / 6;
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * 28,
+        y: y + Math.sin(angle) * 28,
+        alpha: 0,
+        scale: 0.2,
+        duration: 260,
+        onComplete: () => particle.destroy(),
+      });
+    }
   }
 
   createHazards() {
@@ -1102,6 +1242,51 @@ class MainScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.barriers);
     this.physics.add.overlap(this.bullets, this.barriers, this.damageBarrier, null, this);
+  }
+
+  createLogicGates() {
+    this.logicGates = this.physics.add.staticGroup();
+    this.switches = this.physics.add.staticGroup();
+
+    this.addLogicGate({ gateX: 3050, switchX: 2940, label: "AKTIVUJ SPÍNAČ" });
+    this.addLogicGate({ gateX: 5100, switchX: 4960, label: "AKTIVUJ SPÍNAČ" });
+
+    this.physics.add.collider(this.player, this.logicGates);
+    this.physics.add.overlap(this.player, this.switches, this.activateSwitch, null, this);
+  }
+
+  addLogicGate(config) {
+    const gate = this.logicGates.create(config.gateX, 344, "barrier");
+    gate.setDisplaySize(44, 320);
+    gate.setTint(0xa78bfa);
+    gate.refreshBody();
+    const label = this.add.text(config.gateX, 158, config.label, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "13px",
+      fontStyle: "bold",
+      color: "#ddd6fe",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(4);
+    gate.setData("label", label);
+
+    const gameSwitch = this.switches.create(config.switchX, 475, "switch");
+    gameSwitch.setData("gate", gate);
+    gameSwitch.setData("used", false);
+  }
+
+  activateSwitch(_player, gameSwitch) {
+    if (gameSwitch.getData("used")) {
+      return;
+    }
+
+    gameSwitch.setData("used", true);
+    gameSwitch.setTint(0x86efac);
+    const gate = gameSwitch.getData("gate");
+    gate.getData("label").destroy();
+    gate.disableBody(true, true);
+    this.createBurst(gate.x, gate.y, 0xa78bfa);
+    playTone(this, 620, 0.2, "sine", 0.06);
   }
 
   addBarrier(x, lives) {
@@ -1300,6 +1485,12 @@ class MainScene extends Phaser.Scene {
       nextActionAt: 4100,
     });
 
+    if (this.sector === 2) {
+      this.createEnemy({ x: 2350, y: 285, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 2000 });
+      this.createEnemy({ x: 4020, y: 365, texture: "enemy", type: "patrol", lives: 2, minX: 3920, maxX: 4120, speed: 105 });
+      this.createEnemy({ x: 5000, y: 360, texture: "hopper", type: "hopper", lives: 2, minX: 4900, maxX: 5100, speed: 120, nextActionAt: 2600 });
+    }
+
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.bullets, this.enemies, this.damageEnemy, null, this);
     this.physics.add.overlap(this.player, this.enemyBullets, this.hitEnemyBullet, null, this);
@@ -1308,7 +1499,7 @@ class MainScene extends Phaser.Scene {
   }
 
   createBoss() {
-    this.bossLives = 12;
+    this.bossLives = this.difficultySettings.bossLives + (this.sector === 2 ? 4 : 0);
     this.bossDefeated = false;
     this.bossNextShotAt = 1600;
     this.boss = this.physics.add.sprite(5700, 458, "boss");
@@ -1393,13 +1584,14 @@ class MainScene extends Phaser.Scene {
       this.bossBarLabel.destroy();
       this.bossDefeated = true;
       this.kills += 1;
+      this.createBurst(boss.x, boss.y, 0xf0abfc);
       playTone(this, 120, 0.45, "sawtooth", 0.08);
       this.checkVictory();
       return;
     }
 
     this.bossHealthText.setText(`BOSS: ${this.bossLives}`);
-    this.bossBarFill.displayWidth = 256 * (this.bossLives / 12);
+    this.bossBarFill.displayWidth = 256 * (this.bossLives / (this.difficultySettings.bossLives + (this.sector === 2 ? 4 : 0)));
     boss.setTint(0xfef08a);
     this.time.delayedCall(120, () => {
       if (boss.active) {
@@ -1544,6 +1736,7 @@ class MainScene extends Phaser.Scene {
       enemy.disableBody(true, true);
       enemy.getData("healthText").destroy();
       this.kills += 1;
+      this.createBurst(enemy.x, enemy.y, 0xfb7185);
       playTone(this, 130, 0.24, "sawtooth", 0.05);
       return;
     }
@@ -1585,7 +1778,7 @@ class MainScene extends Phaser.Scene {
     this.updateWeapon();
     this.updatePlayerLimbs(0, false);
 
-    this.time.delayedCall(900, () => {
+    this.time.delayedCall(this.difficultySettings.hurtDelay, () => {
       this.isHurt = false;
       this.player.clearTint();
     });
@@ -1629,6 +1822,11 @@ class MainScene extends Phaser.Scene {
     this.updateEnemies(time);
     this.updateBoss(time);
     this.updateRunHud(time);
+
+    if (this.weaponMode === "spread" && time >= this.weaponEndsAt) {
+      this.weaponMode = "basic";
+      playTone(this, 300, 0.1, "sine", 0.03);
+    }
 
     if (this.gameOver || this.isHurt) {
       return;
