@@ -17,6 +17,7 @@ Potom otevřete [http://localhost:8000](http://localhost:8000) v prohlížeči.
 - `←` / `A` — pohyb doleva
 - `→` / `D` — pohyb doprava
 - `↑` / `W` / mezerník — skok
+- `X` — střelba ve směru, kterým postava míří
 
 ## Struktura
 
@@ -29,4 +30,3 @@ Potom otevřete [http://localhost:8000](http://localhost:8000) v prohlížeči.
 │   └── game.js         # Konfigurace Phaseru a herní scéna
 └── assets/             # Budoucí obrázky, zvuky a sprity
 ```
-

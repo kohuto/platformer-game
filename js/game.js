@@ -2,6 +2,155 @@ const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
 const PLAYER_SPEED = 260;
 const JUMP_VELOCITY = -520;
+const BULLET_SPEED = 560;
+const SHOOT_COOLDOWN = 220;
+const ENEMY_SPEED = 70;
+const ENEMY_PATROL_MIN_X = 320;
+const ENEMY_PATROL_MAX_X = 520;
+
+class MenuScene extends Phaser.Scene {
+  constructor() {
+    super("MenuScene");
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor("#1e3a5f");
+    this.add.circle(110, 90, 72, 0x60a5fa, 0.18);
+    this.add.circle(850, 460, 130, 0x4ade80, 0.12);
+
+    this.add.text(480, 105, "SKOK DO DOBRODRUŽSTVÍ", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#93c5fd",
+      letterSpacing: 4,
+    }).setOrigin(0.5);
+
+    this.add.text(480, 165, "Platformer Game", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "52px",
+      fontStyle: "bold",
+      color: "#ffffff",
+    }).setOrigin(0.5);
+
+    const controlsPanel = this.add.rectangle(480, 315, 500, 180, 0x0f172a, 0.55)
+      .setStrokeStyle(2, 0x475569);
+    controlsPanel.setInteractive({ useHandCursor: false });
+
+    this.add.text(480, 255, "OVLÁDÁNÍ", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "17px",
+      fontStyle: "bold",
+      color: "#facc15",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 300, "Pohyb doleva / doprava:  ← →  nebo  A / D", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "19px",
+      color: "#e2e8f0",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 345, "Skok:  ↑, W nebo mezerník", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "19px",
+      color: "#e2e8f0",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 380, "Střelba:  X", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "19px",
+      color: "#e2e8f0",
+    }).setOrigin(0.5);
+
+    const startButton = this.add.rectangle(480, 455, 280, 64, 0x22c55e)
+      .setStrokeStyle(3, 0x86efac)
+      .setInteractive({ useHandCursor: true });
+    const startLabel = this.add.text(480, 455, "ZAČÍT HRU", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "24px",
+      fontStyle: "bold",
+      color: "#052e16",
+    }).setOrigin(0.5);
+
+    const startGame = () => this.scene.start("MainScene");
+    startButton.on("pointerover", () => startButton.setFillStyle(0x4ade80));
+    startButton.on("pointerout", () => startButton.setFillStyle(0x22c55e));
+    startButton.on("pointerdown", startGame);
+    startLabel.setInteractive({ useHandCursor: true }).on("pointerdown", startGame);
+
+    this.add.text(480, 520, "Pro spuštění můžeš také stisknout Enter nebo mezerník", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "15px",
+      color: "#cbd5e1",
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once("keydown-ENTER", startGame);
+    this.input.keyboard.once("keydown-SPACE", startGame);
+  }
+}
+
+class GameOverScene extends Phaser.Scene {
+  constructor() {
+    super("GameOverScene");
+  }
+
+  init(data) {
+    this.finalScore = data.score ?? 0;
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor("#2a1622");
+    this.add.circle(125, 445, 160, 0xef4444, 0.12);
+    this.add.circle(830, 90, 105, 0xfacc15, 0.1);
+
+    this.add.text(480, 125, "Konec hry", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "54px",
+      fontStyle: "bold",
+      color: "#fecaca",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 205, `Nasbírané mince: ${this.finalScore}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "24px",
+      color: "#fef3c7",
+    }).setOrigin(0.5);
+
+    const restartGame = () => this.scene.start("MainScene");
+    const returnToMenu = () => this.scene.start("MenuScene");
+
+    this.createButton(480, 310, "RESTART HRY", 0x22c55e, 0x052e16, restartGame);
+    this.createButton(480, 395, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
+
+    this.add.text(480, 485, "Enter / R: restart  ·  Esc / M: úvodní menu", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      color: "#cbd5e1",
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once("keydown-ENTER", restartGame);
+    this.input.keyboard.once("keydown-R", restartGame);
+    this.input.keyboard.once("keydown-ESC", returnToMenu);
+    this.input.keyboard.once("keydown-M", returnToMenu);
+  }
+
+  createButton(x, y, label, backgroundColor, textColor, onClick) {
+    const button = this.add.rectangle(x, y, 300, 62, backgroundColor)
+      .setStrokeStyle(3, 0xe2e8f0)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add.text(x, y, label, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "22px",
+      fontStyle: "bold",
+      color: textColor,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    button.on("pointerover", () => button.setScale(1.04));
+    button.on("pointerout", () => button.setScale(1));
+    button.on("pointerdown", onClick);
+    text.on("pointerdown", onClick);
+  }
+}
 
 class MainScene extends Phaser.Scene {
   constructor() {
@@ -12,12 +161,18 @@ class MainScene extends Phaser.Scene {
     this.createTextures();
     this.createWorld();
     this.createPlayer();
+    this.createProjectiles();
     this.createCollectibles();
     this.createHazards();
+    this.createEnemy();
     this.createControls();
   }
 
   createTextures() {
+    if (this.textures.exists("platform")) {
+      return;
+    }
+
     const graphics = this.add.graphics();
 
     graphics.fillStyle(0x4ade80);
@@ -53,6 +208,26 @@ class MainScene extends Phaser.Scene {
     graphics.strokeTriangle(0, 24, 10, 0, 20, 24);
     graphics.strokeTriangle(12, 24, 22, 0, 32, 24);
     graphics.generateTexture("spikes", 32, 24);
+    graphics.clear();
+
+    graphics.fillStyle(0xf8fafc);
+    graphics.fillRoundedRect(0, 0, 18, 8, 4);
+    graphics.fillStyle(0x38bdf8);
+    graphics.fillCircle(14, 4, 3);
+    graphics.generateTexture("bullet", 18, 8);
+    graphics.clear();
+
+    graphics.fillStyle(0xef4444);
+    graphics.fillRoundedRect(0, 0, 36, 42, 8);
+    graphics.fillStyle(0x7f1d1d);
+    graphics.fillRect(5, 20, 26, 16);
+    graphics.fillStyle(0xffffff);
+    graphics.fillCircle(11, 12, 4);
+    graphics.fillCircle(25, 12, 4);
+    graphics.fillStyle(0x111827);
+    graphics.fillCircle(11, 12, 1.5);
+    graphics.fillCircle(25, 12, 1.5);
+    graphics.generateTexture("enemy", 36, 42);
     graphics.destroy();
   }
 
@@ -135,6 +310,34 @@ class MainScene extends Phaser.Scene {
     this.scoreText.setText(`Mince: ${this.score}`);
   }
 
+  createProjectiles() {
+    this.lastShotAt = -SHOOT_COOLDOWN;
+    this.bullets = this.physics.add.group();
+  }
+
+  shoot(time) {
+    if (time - this.lastShotAt < SHOOT_COOLDOWN) {
+      return;
+    }
+
+    const direction = this.player.flipX ? -1 : 1;
+    const bullet = this.bullets.create(
+      this.player.x + direction * 24,
+      this.player.y - 4,
+      "bullet",
+    );
+
+    bullet.body.allowGravity = false;
+    bullet.setVelocityX(direction * BULLET_SPEED);
+    this.lastShotAt = time;
+
+    this.time.delayedCall(1200, () => {
+      if (bullet.active) {
+        bullet.destroy();
+      }
+    });
+  }
+
   createHazards() {
     this.spikes = this.physics.add.staticGroup();
 
@@ -147,7 +350,76 @@ class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
   }
 
+  createEnemy() {
+    this.enemyLives = 2;
+    this.enemy = this.physics.add.sprite(420, 280, "enemy");
+    this.enemy.setVelocityX(ENEMY_SPEED);
+    this.physics.add.collider(this.enemy, this.platforms);
+
+    this.enemyHealthText = this.add.text(420, 245, "♥♥", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#991b1b",
+      stroke: "#ffffff",
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    this.physics.add.overlap(this.player, this.enemy, this.hitEnemy, null, this);
+    this.physics.add.overlap(this.bullets, this.enemy, this.damageEnemy, null, this);
+  }
+
+  updateEnemy() {
+    if (!this.enemy?.active) {
+      return;
+    }
+
+    if (this.enemy.x <= ENEMY_PATROL_MIN_X) {
+      this.enemy.setVelocityX(ENEMY_SPEED);
+      this.enemy.setFlipX(false);
+    } else if (this.enemy.x >= ENEMY_PATROL_MAX_X) {
+      this.enemy.setVelocityX(-ENEMY_SPEED);
+      this.enemy.setFlipX(true);
+    }
+
+    this.enemyHealthText.setPosition(this.enemy.x, this.enemy.y - 34);
+  }
+
+  hitEnemy() {
+    this.takeDamage();
+  }
+
+  damageEnemy(firstObject, secondObject) {
+    const bullet = firstObject === this.enemy ? secondObject : firstObject;
+
+    if (!this.enemy.active || !bullet.active) {
+      return;
+    }
+
+    bullet.destroy();
+
+    this.enemyLives -= 1;
+
+    if (this.enemyLives === 0) {
+      this.enemy.disableBody(true, true);
+      this.enemyHealthText.destroy();
+      return;
+    }
+
+    this.enemyHealthText.setText("♥");
+    this.enemy.setTint(0xfca5a5);
+    this.time.delayedCall(140, () => {
+      if (this.enemy.active) {
+        this.enemy.clearTint();
+      }
+    });
+  }
+
   hitSpikes() {
+    this.takeDamage();
+  }
+
+  takeDamage() {
     if (this.isHurt || this.gameOver) {
       return;
     }
@@ -158,15 +430,7 @@ class MainScene extends Phaser.Scene {
     if (this.lives === 0) {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
-      this.player.setTint(0xef4444);
-      this.add.text(480, 270, "Konec hry", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "42px",
-        fontStyle: "bold",
-        color: "#ffffff",
-        stroke: "#0f172a",
-        strokeThickness: 8,
-      }).setOrigin(0.5);
+      this.scene.start("GameOverScene", { score: this.score });
       return;
     }
 
@@ -184,9 +448,12 @@ class MainScene extends Phaser.Scene {
   createControls() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,D");
+    this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
   }
 
-  update() {
+  update(time) {
+    this.updateEnemy();
+
     if (this.gameOver || this.isHurt) {
       return;
     }
@@ -208,6 +475,10 @@ class MainScene extends Phaser.Scene {
     if (jumping && this.player.body.blocked.down) {
       this.player.setVelocityY(JUMP_VELOCITY);
     }
+
+    if (Phaser.Input.Keyboard.JustDown(this.shootKey)) {
+      this.shoot(time);
+    }
   }
 }
 
@@ -223,5 +494,5 @@ new Phaser.Game({
       debug: false,
     },
   },
-  scene: MainScene,
+  scene: [MenuScene, MainScene, GameOverScene],
 });
