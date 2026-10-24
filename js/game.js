@@ -1,6 +1,5 @@
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
-const LEVEL_WIDTH = 5760;
 const MAX_LIVES = 3;
 const MAX_AMMO = 10;
 const PLAYER_SPEED = 260;
@@ -15,6 +14,12 @@ const DASH_COOLDOWN = 950;
 const TIME_CHALLENGE_SECONDS = 300;
 const BOSS_LIVES = 5;
 const PROGRESS_STORAGE_KEY = "platformer-game-progress";
+const LEVELS = [
+  { id: 1, name: "Neonový sektor", shortName: "NEON", description: "Město pod elektrickým nebem", accent: 0x35d6e8, sky: 0x07172f, horizon: 0x172554, ground: 0x0f766e, platformTint: 0xffffff },
+  { id: 2, name: "Ledová citadela", shortName: "LED", description: "Mrazivé věže a skleněné mosty", accent: 0x93c5fd, sky: 0x0c1a2f, horizon: 0x1e3a5f, ground: 0x2563eb, platformTint: 0xdbeafe },
+  { id: 3, name: "Lávové slévárny", shortName: "LÁVA", description: "Žár, kov a roztavené jádro", accent: 0xfb923c, sky: 0x260b0b, horizon: 0x7c2d12, ground: 0xdc2626, platformTint: 0xffedd5 },
+  { id: 4, name: "Hvězdná trhlina", shortName: "PRÁZDNO", description: "Poslední cesta mezi hvězdami", accent: 0xc4b5fd, sky: 0x130d2b, horizon: 0x312e81, ground: 0x7c3aed, platformTint: 0xede9fe },
+];
 const DIFFICULTIES = {
   easy: { label: "LEHKÁ", startingLives: 3, hurtDelay: 1200 },
   normal: { label: "NORMÁLNÍ", startingLives: 3, hurtDelay: 900 },
@@ -48,10 +53,87 @@ function formatDuration(totalSeconds) {
 
 function loadProgress() {
   try {
-    return JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY)) ?? { wins: 0, bestTime: null, unlockedSector: 1 };
+    const progress = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY)) ?? {};
+    return {
+      wins: progress.wins ?? 0,
+      bestTime: progress.bestTime ?? null,
+      unlockedLevel: progress.unlockedLevel ?? (progress.unlockedSector >= 2 ? 2 : 1),
+    };
   } catch (_error) {
-    return { wins: 0, bestTime: null, unlockedSector: 1 };
+    return { wins: 0, bestTime: null, unlockedLevel: 1 };
   }
+}
+
+function getLevel(levelId) {
+  return LEVELS.find((level) => level.id === levelId) ?? LEVELS[0];
+}
+
+const LEVEL_LAYOUTS = {
+  1: {
+    width: 3200,
+    platforms: [[250, 520, 4], [700, 470, 2], [1050, 470, 2], [1450, 390, 3], [1900, 440, 2], [2400, 350, 3], [2850, 520, 5]],
+    movingPlatforms: [{ x: 1450, y: 355, width: 128, amplitude: 90, speed: 0.0012, axis: "x" }],
+    coins: [[110, 470], [260, 470], [650, 420], [760, 420], [1000, 420], [1100, 420], [1360, 340], [1460, 340], [1580, 340], [1860, 390], [1960, 390], [2310, 300], [2410, 300], [2530, 300], [2820, 470]],
+    health: [[700, 420], [1900, 390]], ammo: [[1050, 420], [2400, 300]], weapon: [[1450, 340]], spikes: [[420, 488], [2230, 488]],
+    barriers: [{ x: 2450, lives: 3 }], gates: [{ gateX: 2700, switchX: 2400, switchY: 305 }], checkpoints: [[1900, 375, 1900, 390]],
+    enemies: [
+      { x: 700, y: 425, texture: "enemy", type: "patrol", lives: 2, minX: 620, maxX: 780, speed: 70 },
+      { x: 1450, y: 345, texture: "hopper", type: "hopper", lives: 1, minX: 1320, maxX: 1580, speed: 90, nextActionAt: 700 },
+      { x: 1900, y: 400, texture: "sentry", type: "sentry", lives: 2, nextActionAt: 1200 },
+    ],
+  },
+  2: {
+    width: 3800,
+    platforms: [[250, 520, 4], [540, 430, 1], [740, 340, 1], [960, 250, 2], [1260, 180, 1], [1540, 250, 1], [1780, 350, 1], [2020, 450, 2], [2380, 520, 4], [2750, 420, 2], [3050, 320, 1], [3330, 240, 1], [3600, 520, 4]],
+    movingPlatforms: [{ x: 1480, y: 350, width: 128, amplitude: 105, speed: 0.001, axis: "y" }, { x: 2700, y: 320, width: 128, amplitude: 110, speed: 0.0011, axis: "x" }],
+    coins: [[120, 470], [250, 470], [540, 380], [740, 290], [920, 200], [1000, 200], [1260, 130], [1540, 200], [1780, 300], [2020, 400], [2120, 400], [2340, 470], [2440, 470], [2720, 370], [2810, 370], [3050, 270], [3330, 190], [3590, 470]],
+    health: [[1260, 130], [2380, 470]], ammo: [[960, 200], [3050, 270]], weapon: [[1540, 200]], spikes: [[410, 488], [2480, 488]],
+    barriers: [{ x: 2450, lives: 3 }], gates: [{ gateX: 3500, switchX: 3330, switchY: 195 }], checkpoints: [[2020, 405, 2020, 420], [2750, 375, 2750, 390]],
+    enemies: [
+      { x: 960, y: 205, texture: "hopper", type: "hopper", lives: 1, minX: 850, maxX: 1070, speed: 100, nextActionAt: 700 },
+      { x: 1540, y: 205, texture: "enemy", type: "patrol", lives: 2, minX: 1480, maxX: 1600, speed: 75 },
+      { x: 2750, y: 380, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
+      { x: 3330, y: 195, texture: "enemy", type: "patrol", lives: 2, minX: 3270, maxX: 3390, speed: 95 },
+    ],
+  },
+  3: {
+    width: 4500,
+    // Láva: krátké kovové ostrůvky, strmé schody a dvě proměnlivé plošiny nad žárem.
+    platforms: [[220, 520, 3], [600, 420, 1], [850, 300, 1], [1120, 420, 1], [1400, 250, 2], [1750, 400, 1], [2000, 520, 3], [2400, 360, 1], [2700, 240, 2], [3100, 390, 1], [3400, 520, 3], [3800, 330, 2], [4200, 520, 4]],
+    movingPlatforms: [{ x: 1500, y: 335, width: 128, amplitude: 80, speed: 0.0012, axis: "y" }, { x: 2900, y: 330, width: 128, amplitude: 110, speed: 0.0011, axis: "x" }],
+    coins: [[110, 470], [250, 470], [600, 370], [850, 250], [1120, 370], [1340, 200], [1450, 200], [1690, 350], [1920, 470], [2050, 470], [2400, 310], [2640, 190], [2750, 190], [3100, 340], [3330, 470], [3450, 470], [3740, 280], [3840, 280], [4160, 470]],
+    health: [[1400, 200], [3400, 470]], ammo: [[1120, 370], [3800, 280]], weapon: [[2700, 190]], spikes: [[430, 488], [2110, 488], [3500, 488]],
+    barriers: [{ x: 2050, lives: 4 }, { x: 3400, lives: 4 }], gates: [{ gateX: 4000, switchX: 3800, switchY: 285 }], checkpoints: [[2000, 455, 2000, 470], [3400, 455, 3400, 470]],
+    enemies: [
+      { x: 600, y: 375, texture: "enemy", type: "patrol", lives: 2, minX: 540, maxX: 660, speed: 90 },
+      { x: 1400, y: 205, texture: "hopper", type: "hopper", lives: 2, minX: 1280, maxX: 1520, speed: 105, nextActionAt: 800 },
+      { x: 1750, y: 360, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1200 },
+      { x: 2700, y: 195, texture: "enemy", type: "patrol", lives: 2, minX: 2580, maxX: 2820, speed: 105 },
+      { x: 3100, y: 350, texture: "hopper", type: "hopper", lives: 2, minX: 3040, maxX: 3160, speed: 110, nextActionAt: 1650 },
+      { x: 3800, y: 290, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1900 },
+    ],
+  },
+  4: {
+    width: 4800,
+    // Prázdno: izolované plovoucí ostrovy, velké mezery a dlouhé výškové skoky.
+    platforms: [[220, 520, 3], [580, 350, 1], [900, 220, 1], [1250, 380, 1], [1580, 180, 1], [1920, 330, 1], [2250, 520, 3], [2620, 260, 1], [3000, 140, 1], [3350, 310, 1], [3700, 500, 2], [4100, 270, 1], [4450, 520, 4]],
+    movingPlatforms: [{ x: 1450, y: 300, width: 128, amplitude: 105, speed: 0.0011, axis: "x" }, { x: 2450, y: 350, width: 128, amplitude: 85, speed: 0.001, axis: "y" }, { x: 3900, y: 320, width: 128, amplitude: 120, speed: 0.0011, axis: "x" }],
+    coins: [[100, 470], [230, 470], [620, 300], [900, 170], [1195, 330], [1580, 130], [1870, 280], [2180, 470], [2300, 470], [2620, 210], [2950, 90], [3300, 260], [3650, 450], [3750, 450], [4050, 220], [4410, 470]],
+    health: [[900, 170], [3700, 450]], ammo: [[1580, 130], [4100, 220]], weapon: [[3000, 90]], spikes: [[390, 488], [2380, 488]],
+    barriers: [{ x: 2250, lives: 4 }, { x: 4450, lives: 5 }], gates: [{ gateX: 4300, switchX: 4100, switchY: 225 }], checkpoints: [[2250, 455, 2250, 470], [3700, 435, 3700, 450]],
+    enemies: [
+      { x: 580, y: 305, texture: "enemy", type: "patrol", lives: 2, minX: 520, maxX: 640, speed: 90 },
+      { x: 1250, y: 335, texture: "hopper", type: "hopper", lives: 2, minX: 1190, maxX: 1310, speed: 110, nextActionAt: 700 },
+      { x: 1920, y: 290, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
+      { x: 3000, y: 95, texture: "enemy", type: "patrol", lives: 2, minX: 2940, maxX: 3060, speed: 110 },
+      { x: 3350, y: 270, texture: "hopper", type: "hopper", lives: 2, minX: 3290, maxX: 3410, speed: 115, nextActionAt: 1800 },
+      { x: 4100, y: 230, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 2100 },
+    ],
+  },
+};
+
+function getLevelLayout(levelId) {
+  return LEVEL_LAYOUTS[levelId] ?? LEVEL_LAYOUTS[1];
 }
 
 function saveProgress(progress) {
@@ -134,8 +216,8 @@ class MenuScene extends Phaser.Scene {
 
   create() {
     this.selectedDifficulty = "normal";
-    this.selectedSector = 1;
     this.progress = loadProgress();
+    this.selectedLevel = this.progress.unlockedLevel;
     addSceneBackdrop(this);
 
     this.add.text(480, 78, "NEON HORIZON", {
@@ -153,16 +235,16 @@ class MenuScene extends Phaser.Scene {
       color: "#e0f2fe",
     }).setOrigin(0.5);
 
-    this.add.text(480, 157, "Vyber sektor a obtížnost. Všechno ovládneš myší.", {
+    this.add.text(480, 157, "Projdi cestu světy a odemykej další výpravy.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "16px",
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
-    createUiCard(this, 310, 316, 410, 270);
-    createUiCard(this, 690, 316, 290, 270);
+    createUiCard(this, 330, 316, 500, 270);
+    createUiCard(this, 745, 316, 200, 270);
 
-    this.add.text(310, 220, "VÝPRAVA", {
+    this.add.text(330, 220, "MAPA VÝPRAVY", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       fontStyle: "bold",
@@ -170,11 +252,17 @@ class MenuScene extends Phaser.Scene {
       letterSpacing: 2,
     }).setOrigin(0.5);
 
-    this.sectorCards = [];
-    this.createSectorCard(310, 265, 1, "NEONOVÝ SEKTOR", "Základní expedice", true);
-    this.createSectorCard(310, 347, 2, "SEKTOR VÝZVY", this.progress.unlockedSector >= 2 ? "Více nepřátel, silnější rytmus" : "Dokonči Sektor 1 pro odemčení", this.progress.unlockedSector >= 2);
+    this.mapNodes = [];
+    const mapPositions = [[155, 330], [275, 278], [400, 342], [510, 267]];
+    const route = this.add.graphics();
+    route.lineStyle(3, 0x365273, 0.8);
+    mapPositions.slice(0, -1).forEach((point, index) => route.lineBetween(point[0], point[1], mapPositions[index + 1][0], mapPositions[index + 1][1]));
+    LEVELS.forEach((level, index) => this.createMapNode(mapPositions[index][0], mapPositions[index][1], level));
+    this.levelInfo = this.add.text(330, 411, "", {
+      fontFamily: "system-ui, sans-serif", fontSize: "13px", color: UI_COLORS.muted, align: "center", wordWrap: { width: 430 },
+    }).setOrigin(0.5);
 
-    this.add.text(690, 220, "OBTÍŽNOST", {
+    this.add.text(745, 220, "OBTÍŽNOST", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       fontStyle: "bold",
@@ -186,11 +274,11 @@ class MenuScene extends Phaser.Scene {
       ["easy", "LEHKÁ", "Více času na chybu"],
       ["normal", "NORMÁLNÍ", "Doporučená volba"],
       ["hard", "TĚŽKÁ", "Rychlá reakce nutná"],
-    ].forEach(([key, label, detail], index) => this.createDifficultyButton(690, 263 + index * 54, key, label, detail));
+    ].forEach(([key, label, detail], index) => this.createDifficultyButton(745, 263 + index * 54, key, label, detail));
 
     const startGame = () => this.scene.start("MainScene", {
       difficulty: this.selectedDifficulty,
-      sector: this.selectedSector,
+      level: this.selectedLevel,
     });
     createUiButton(this, { x: 480, y: 465, width: 330, label: "SPUSTIT VÝPRAVU", onClick: startGame });
     this.add.text(480, 512, `Rekord ${this.progress.bestTime === null ? "—" : formatDuration(this.progress.bestTime)}   •   Dokončení ${this.progress.wins}`, {
@@ -203,32 +291,36 @@ class MenuScene extends Phaser.Scene {
     this.refreshMenuSelection();
   }
 
-  createSectorCard(x, y, sector, title, detail, unlocked) {
-    const card = this.add.rectangle(x, y, 360, 68, unlocked ? 0x14233e : 0x0d1525)
-      .setStrokeStyle(1, unlocked ? UI_COLORS.panelEdge : 0x1c2941);
-    if (unlocked) card.setInteractive({ useHandCursor: true });
-    const titleText = this.add.text(x - 154, y - 12, title, { fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "bold", color: unlocked ? UI_COLORS.text : "#52617b" }).setOrigin(0, 0.5);
-    const detailText = this.add.text(x - 154, y + 13, detail, { fontFamily: "system-ui, sans-serif", fontSize: "12px", color: unlocked ? UI_COLORS.muted : "#52617b" }).setOrigin(0, 0.5);
-    const marker = this.add.circle(x + 151, y, 7, unlocked ? UI_COLORS.cyan : 0x334155);
-    if (unlocked) card.on("pointerdown", () => { this.selectedSector = sector; this.refreshMenuSelection(); });
-    this.sectorCards.push({ sector, card, marker, titleText, detailText, unlocked });
+  createMapNode(x, y, level) {
+    const unlocked = level.id <= this.progress.unlockedLevel;
+    const ring = this.add.circle(x, y, 28, 0x0c1528).setStrokeStyle(3, unlocked ? level.accent : 0x334155);
+    const core = this.add.circle(x, y, 17, unlocked ? level.accent : 0x1d2b42);
+    const number = this.add.text(x, y, String(level.id), { fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "bold", color: unlocked ? "#06101e" : "#64748b" }).setOrigin(0.5);
+    const label = this.add.text(x, y + 42, level.shortName, { fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "bold", color: unlocked ? UI_COLORS.text : "#52617b" }).setOrigin(0.5);
+    if (unlocked) {
+      ring.setInteractive({ useHandCursor: true });
+      core.setInteractive({ useHandCursor: true });
+      [ring, core, number, label].forEach((item) => item.on?.("pointerdown", () => { this.selectedLevel = level.id; this.refreshMenuSelection(); }));
+    }
+    this.mapNodes.push({ level, unlocked, ring, core, number, label });
   }
 
   createDifficultyButton(x, y, key, label, detail) {
-    const button = this.add.rectangle(x, y, 238, 45, 0x14233e).setStrokeStyle(1, UI_COLORS.panelEdge).setInteractive({ useHandCursor: true });
-    const labelText = this.add.text(x - 104, y - 8, label, { fontFamily: "system-ui, sans-serif", fontSize: "14px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0, 0.5);
-    const detailText = this.add.text(x - 104, y + 10, detail, { fontFamily: "system-ui, sans-serif", fontSize: "11px", color: UI_COLORS.muted }).setOrigin(0, 0.5);
+    const button = this.add.rectangle(x, y, 160, 45, 0x14233e).setStrokeStyle(1, UI_COLORS.panelEdge).setInteractive({ useHandCursor: true });
+    const labelText = this.add.text(x - 66, y - 8, label, { fontFamily: "system-ui, sans-serif", fontSize: "13px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0, 0.5);
+    const detailText = this.add.text(x - 66, y + 10, detail, { fontFamily: "system-ui, sans-serif", fontSize: "10px", color: UI_COLORS.muted }).setOrigin(0, 0.5);
     button.on("pointerdown", () => { this.selectedDifficulty = key; this.refreshMenuSelection(); });
     this.difficultyButtons.push({ key, button, labelText, detailText });
   }
 
   refreshMenuSelection() {
-    this.sectorCards.forEach((item) => {
-      const active = item.sector === this.selectedSector;
-      item.card.setFillStyle(active ? 0x1a3851 : item.unlocked ? 0x14233e : 0x0d1525);
-      item.card.setStrokeStyle(active ? 2 : 1, active ? UI_COLORS.cyan : item.unlocked ? UI_COLORS.panelEdge : 0x1c2941);
-      item.marker.setFillStyle(active ? UI_COLORS.yellow : item.unlocked ? UI_COLORS.cyan : 0x334155);
+    this.mapNodes.forEach((item) => {
+      const active = item.level.id === this.selectedLevel;
+      item.ring.setStrokeStyle(active ? 5 : 3, active ? UI_COLORS.yellow : item.unlocked ? item.level.accent : 0x334155);
+      item.core.setFillStyle(item.unlocked ? (active ? UI_COLORS.yellow : item.level.accent) : 0x1d2b42);
     });
+    const selected = getLevel(this.selectedLevel);
+    this.levelInfo.setText(`${selected.name}  ·  ${selected.description}`);
     this.difficultyButtons.forEach((item) => {
       const active = item.key === this.selectedDifficulty;
       item.button.setFillStyle(active ? 0x243d62 : 0x14233e);
@@ -248,7 +340,7 @@ class GameOverScene extends Phaser.Scene {
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
     this.difficulty = data.difficulty ?? "normal";
-    this.sector = data.sector ?? 1;
+    this.level = data.level ?? 1;
   }
 
   create() {
@@ -272,7 +364,7 @@ class GameOverScene extends Phaser.Scene {
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
-    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
+    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, level: this.level });
     const returnToMenu = () => this.scene.start("MenuScene");
 
     createUiButton(this, { x: 480, y: 350, width: 330, label: "ZKUSIT ZNOVU", accent: UI_COLORS.red, onClick: restartGame });
@@ -299,7 +391,7 @@ class VictoryScene extends Phaser.Scene {
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
     this.difficulty = data.difficulty ?? "normal";
-    this.sector = data.sector ?? 1;
+    this.level = data.level ?? 1;
   }
 
   create() {
@@ -342,7 +434,7 @@ class VictoryScene extends Phaser.Scene {
       color: this.finalTime <= TIME_CHALLENGE_SECONDS ? "#86efac" : "#cbd5e1",
     }).setOrigin(0.5);
 
-    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
+    const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, level: this.level });
     const returnToMenu = () => this.scene.start("MenuScene");
 
     createUiButton(this, { x: 480, y: 374, width: 330, label: "HRÁT ZNOVU", accent: UI_COLORS.green, onClick: restartGame });
@@ -411,7 +503,10 @@ class MainScene extends Phaser.Scene {
 
   init(data) {
     this.difficulty = data.difficulty ?? "normal";
-    this.sector = data.sector ?? 1;
+    this.level = data.level ?? 1;
+    this.theme = getLevel(this.level);
+    this.layout = getLevelLayout(this.level);
+    this.levelWidth = this.layout.width;
     this.difficultySettings = DIFFICULTIES[this.difficulty] ?? DIFFICULTIES.normal;
   }
 
@@ -671,101 +766,76 @@ class MainScene extends Phaser.Scene {
   }
 
   createWorld() {
-    this.cameras.main.setBackgroundColor("#020617");
+    const { sky: skyColor, horizon, ground, accent, platformTint } = this.theme;
+    this.platformTint = platformTint;
+    this.cameras.main.setBackgroundColor(skyColor);
 
     const sky = this.add.graphics().setDepth(-20);
-    sky.fillStyle(0x020617);
-    sky.fillRect(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
-    sky.fillStyle(0x0f1d3d);
-    sky.fillRect(0, 100, LEVEL_WIDTH, 180);
-    sky.fillStyle(0x172554);
-    sky.fillRect(0, 260, LEVEL_WIDTH, 120);
-    sky.fillStyle(0x1e1b4b);
+    sky.fillStyle(skyColor);
+    sky.fillRect(0, 0, this.levelWidth, GAME_HEIGHT);
+    sky.fillStyle(horizon, 0.6);
+    sky.fillRect(0, 100, this.levelWidth, 180);
+    sky.fillStyle(ground, 0.25);
+    sky.fillRect(0, 260, this.levelWidth, 120);
+    sky.fillStyle(accent, 0.16);
     sky.fillCircle(220, 105, 58);
-    sky.fillStyle(0xc4b5fd, 0.8);
+    sky.fillStyle(accent, 0.8);
     sky.fillCircle(205, 91, 8);
     sky.fillCircle(238, 123, 5);
 
     const mountains = this.add.graphics().setDepth(-15);
-    mountains.fillStyle(0x111c3d);
-    for (let x = -80; x < LEVEL_WIDTH + 160; x += 180) {
+    mountains.fillStyle(skyColor, 0.72);
+    for (let x = -80; x < this.levelWidth + 160; x += 180) {
       mountains.fillTriangle(x, 410, x + 90, 200 + (x % 3) * 18, x + 180, 410);
     }
-    mountains.fillStyle(0x172554);
-    for (let x = -40; x < LEVEL_WIDTH + 180; x += 145) {
+    mountains.fillStyle(horizon, 0.56);
+    for (let x = -40; x < this.levelWidth + 180; x += 145) {
       mountains.fillTriangle(x, 455, x + 72, 275 + (x % 4) * 12, x + 145, 455);
     }
 
     const city = this.add.graphics().setDepth(-10);
-    city.fillStyle(0x0b1128);
-    for (let x = 40; x < LEVEL_WIDTH; x += 110) {
+    city.fillStyle(skyColor, 0.88);
+    for (let x = 40; x < this.levelWidth; x += 110) {
       const height = 48 + ((x / 10) % 4) * 24;
       city.fillRect(x, 470 - height, 72, height);
-      city.fillStyle(0x22d3ee, 0.45);
+      city.fillStyle(accent, 0.45);
       city.fillRect(x + 12, 482 - height, 8, 3);
       city.fillRect(x + 37, 500 - height, 8, 3);
-      city.fillStyle(0x0b1128);
+      city.fillStyle(skyColor, 0.88);
     }
 
     const clouds = this.add.graphics().setDepth(-5);
-    clouds.fillStyle(0xbae6fd, 0.18);
+    clouds.fillStyle(accent, 0.16);
     [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145], [2050, 92], [2380, 140], [2680, 76], [3020, 112], [3360, 70], [3680, 145], [4050, 86], [4380, 130], [4720, 75], [5070, 120], [5420, 90], [5680, 145]].forEach(([x, y]) => {
       clouds.fillCircle(x, y, 22);
       clouds.fillCircle(x + 27, y - 10, 30);
-    clouds.fillCircle(x + 57, y, 20);
+      clouds.fillCircle(x + 57, y, 20);
     });
 
+    this.createThemeDecorations();
+
     const gateArchitecture = this.add.graphics().setDepth(-2);
-    [1950, 3850, 4800, 5600].forEach((x) => {
-      gateArchitecture.fillStyle(0x0b1128, 0.9);
+    [...this.layout.barriers.map((barrier) => barrier.x), ...this.layout.gates.map((gate) => gate.gateX)].forEach((x) => {
+      gateArchitecture.fillStyle(skyColor, 0.9);
       gateArchitecture.fillRect(x - 46, 160, 92, 344);
-      gateArchitecture.fillStyle(0x155e75, 0.8);
+      gateArchitecture.fillStyle(horizon, 0.8);
       gateArchitecture.fillRect(x - 42, 170, 7, 324);
       gateArchitecture.fillRect(x + 35, 170, 7, 324);
-      gateArchitecture.fillStyle(0x22d3ee, 0.55);
+      gateArchitecture.fillStyle(accent, 0.55);
       gateArchitecture.fillRect(x - 42, 175, 7, 76);
       gateArchitecture.fillRect(x + 35, 175, 7, 76);
     });
 
     this.platforms = this.physics.add.staticGroup();
-    this.addPlatform(480, 520, 8);
-    this.addPlatform(165, 400, 2);
-    this.addPlatform(420, 330, 2);
-    this.addPlatform(690, 255, 2);
-    this.addPlatform(855, 390, 1);
-    this.addPlatform(1440, 520, 8);
-    this.addPlatform(1110, 405, 2);
-    this.addPlatform(1350, 325, 2);
-    this.addPlatform(1590, 250, 2);
-    this.addPlatform(1800, 385, 1);
-    this.addPlatform(2400, 520, 8);
-    this.addPlatform(2100, 400, 2);
-    this.addPlatform(2350, 320, 2);
-    this.addPlatform(2620, 245, 2);
-    this.addPlatform(2800, 385, 1);
-    this.addPlatform(3360, 520, 8);
-    this.addPlatform(3070, 405, 2);
-    this.addPlatform(3290, 330, 2);
-    this.addPlatform(3550, 250, 2);
-    this.addPlatform(3740, 385, 1);
-    this.addPlatform(4320, 520, 8);
-    this.addPlatform(4020, 400, 2);
-    this.addPlatform(4240, 315, 2);
-    this.addPlatform(4460, 230, 2);
-    this.addPlatform(4700, 370, 1);
-    this.addPlatform(5280, 520, 8);
-    this.addPlatform(5000, 395, 2);
-    this.addPlatform(5220, 310, 2);
-    this.addPlatform(5480, 245, 2);
-    this.addPlatform(5700, 380, 1);
+    this.layout.platforms.forEach(([x, y, width]) => this.addPlatform(x, y, width));
 
-    this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
+    this.physics.world.setBounds(0, 0, this.levelWidth, GAME_HEIGHT);
 
     this.add.rectangle(480, 30, 930, 46, 0x081226, 0.88)
       .setStrokeStyle(1, 0x274569, 0.9)
       .setScrollFactor(0)
       .setDepth(20);
-    this.add.text(34, 30, this.sector === 2 ? "S2" : "S1", {
+    this.add.text(34, 30, this.theme.shortName, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "15px",
       fontStyle: "bold",
@@ -826,8 +896,52 @@ class MainScene extends Phaser.Scene {
   addPlatform(x, y, widthInTiles) {
     const platform = this.platforms.create(x, y, "platform");
     platform.setDisplaySize(widthInTiles * 128, 32);
+    platform.setTint(this.platformTint);
     platform.setDepth(0);
     platform.refreshBody();
+  }
+
+  createThemeDecorations() {
+    const decorations = this.add.graphics().setDepth(-7);
+
+    if (this.level === 2) {
+      decorations.fillStyle(0xdbeafe, 0.5);
+      for (let x = 60; x < this.levelWidth; x += 170) {
+        decorations.fillTriangle(x, 0, x + 28, 0, x + 14, 46 + (x % 5) * 5);
+        decorations.fillCircle(x + 65, 110 + (x % 3) * 34, 3);
+        decorations.fillCircle(x + 92, 164 + (x % 4) * 25, 2);
+      }
+      decorations.fillStyle(0x93c5fd, 0.18);
+      decorations.fillRect(0, 470, this.levelWidth, 70);
+      return;
+    }
+
+    if (this.level === 3) {
+      decorations.fillStyle(0x7f1d1d, 0.9);
+      decorations.fillRect(0, 492, this.levelWidth, 48);
+      decorations.fillStyle(0xfb923c, 0.75);
+      for (let x = 0; x < this.levelWidth; x += 64) {
+        decorations.fillCircle(x + 22, 510 + Math.sin(x) * 5, 18);
+      }
+      decorations.fillStyle(0xfde68a, 0.6);
+      for (let x = 80; x < this.levelWidth; x += 230) {
+        decorations.fillCircle(x, 185 + (x % 4) * 45, 3);
+        decorations.fillCircle(x + 34, 230 + (x % 3) * 35, 2);
+      }
+      return;
+    }
+
+    if (this.level === 4) {
+      decorations.fillStyle(0xffffff, 0.75);
+      for (let x = 35; x < this.levelWidth; x += 90) {
+        const y = 56 + ((x * 17) % 330);
+        decorations.fillCircle(x, y, x % 4 === 0 ? 3 : 1);
+      }
+      decorations.fillStyle(0x8b5cf6, 0.18);
+      for (let x = 140; x < this.levelWidth; x += 390) {
+        decorations.fillTriangle(x, 390, x + 70, 225, x + 130, 420);
+      }
+    }
   }
 
   createPlayer() {
@@ -905,7 +1019,7 @@ class MainScene extends Phaser.Scene {
   }
 
   createCamera() {
-    this.cameras.main.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
+    this.cameras.main.setBounds(0, 0, this.levelWidth, GAME_HEIGHT);
     this.cameras.main.startFollow(this.player, true, 0.1, 0);
     this.cameras.main.setDeadzone(240, GAME_HEIGHT);
   }
@@ -913,13 +1027,7 @@ class MainScene extends Phaser.Scene {
   createMovingPlatforms() {
     this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
 
-    [
-      { x: 920, y: 285, width: 128, amplitude: 105, speed: 0.0012, axis: "x" },
-      { x: 1930, y: 335, width: 128, amplitude: 75, speed: 0.001, axis: "y" },
-      { x: 3650, y: 310, width: 128, amplitude: 120, speed: 0.0011, axis: "x" },
-      { x: 4550, y: 355, width: 128, amplitude: 90, speed: 0.0013, axis: "y" },
-      { x: 5350, y: 300, width: 128, amplitude: 115, speed: 0.001, axis: "x" },
-    ].forEach((config) => this.addMovingPlatform(config));
+    this.layout.movingPlatforms.forEach((config) => this.addMovingPlatform(config));
 
     this.physics.add.collider(this.player, this.movingPlatforms);
   }
@@ -927,7 +1035,7 @@ class MainScene extends Phaser.Scene {
   addMovingPlatform(config) {
     const platform = this.movingPlatforms.create(config.x, config.y, "platform");
     platform.setDisplaySize(config.width, 32);
-    platform.setTint(0xa5f3fc);
+    platform.setTint(this.theme.accent);
     platform.setDepth(0.1);
     platform.body.setAllowGravity(false);
     platform.body.setImmovable(true);
@@ -953,50 +1061,7 @@ class MainScene extends Phaser.Scene {
     this.score = 0;
     this.coins = this.physics.add.staticGroup();
 
-    [
-      [180, 365],
-      [190, 365],
-      [380, 295],
-      [455, 295],
-      [650, 220],
-      [725, 220],
-      [855, 355],
-      [1070, 370],
-      [1140, 370],
-      [1310, 290],
-      [1380, 290],
-      [1550, 215],
-      [1625, 215],
-      [1800, 350],
-      [2050, 365],
-      [2140, 365],
-      [2310, 285],
-      [2390, 285],
-      [2580, 210],
-      [2650, 210],
-      [2800, 350],
-      [3030, 370],
-      [3100, 370],
-      [3250, 295],
-      [3320, 295],
-      [3510, 215],
-      [3580, 215],
-      [3740, 350],
-      [3980, 365],
-      [4050, 365],
-      [4200, 280],
-      [4270, 280],
-      [4420, 195],
-      [4490, 195],
-      [4700, 335],
-      [4960, 360],
-      [5030, 360],
-      [5180, 275],
-      [5250, 275],
-      [5440, 210],
-      [5510, 210],
-      [5700, 345],
-    ].forEach(([x, y]) => this.coins.create(x, y, "coin"));
+    this.layout.coins.forEach(([x, y]) => this.coins.create(x, y, "coin"));
 
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
   }
@@ -1018,7 +1083,7 @@ class MainScene extends Phaser.Scene {
       playTone(this, 880, 0.28, "sine", 0.06);
       const progress = loadProgress();
       progress.wins += 1;
-      progress.unlockedSector = 2;
+      progress.unlockedLevel = Math.min(LEVELS.length, Math.max(progress.unlockedLevel, this.level + 1));
       const stats = this.getRunStats();
       if (progress.bestTime === null || stats.time < progress.bestTime) {
         progress.bestTime = stats.time;
@@ -1031,17 +1096,7 @@ class MainScene extends Phaser.Scene {
   createHealthPickups() {
     this.healthPickups = this.physics.add.staticGroup();
 
-    [
-      [560, 478],
-      [700, 210],
-      [1350, 290],
-      [1800, 350],
-      [2350, 285],
-      [2800, 350],
-      [3550, 215],
-      [4460, 195],
-      [5480, 210],
-    ].forEach(([x, y]) => this.healthPickups.create(x, y, "health"));
+    this.layout.health.forEach(([x, y]) => this.healthPickups.create(x, y, "health"));
 
     this.physics.add.overlap(this.player, this.healthPickups, this.collectHealth, null, this);
   }
@@ -1101,7 +1156,7 @@ class MainScene extends Phaser.Scene {
 
   createWeaponPickups() {
     this.weaponPickups = this.physics.add.staticGroup();
-    [[1200, 370], [2700, 210], [4470, 170]].forEach(([x, y]) => {
+    this.layout.weapon.forEach(([x, y]) => {
       const pickup = this.weaponPickups.create(x, y, "ammoPickup");
       pickup.setTint(0xa78bfa);
       pickup.setScale(1.15);
@@ -1120,17 +1175,7 @@ class MainScene extends Phaser.Scene {
   createAmmoPickups() {
     this.ammoPickups = this.physics.add.staticGroup();
 
-    [
-      [855, 350],
-      [1590, 210],
-      [2380, 285],
-      [2630, 210],
-      [2800, 350],
-      [3290, 295],
-      [4240, 280],
-      [5220, 275],
-      [5700, 345],
-    ].forEach(([x, y]) => this.ammoPickups.create(x, y, "ammoPickup"));
+    this.layout.ammo.forEach(([x, y]) => this.ammoPickups.create(x, y, "ammoPickup"));
 
     this.physics.add.overlap(this.player, this.ammoPickups, this.collectAmmo, null, this);
   }
@@ -1156,7 +1201,7 @@ class MainScene extends Phaser.Scene {
       kills: this.kills,
       time: Math.floor((this.time.now - this.startedAt) / 1000),
       difficulty: this.difficulty,
-      sector: this.sector,
+      level: this.level,
     };
   }
 
@@ -1199,28 +1244,7 @@ class MainScene extends Phaser.Scene {
   createHazards() {
     this.spikes = this.physics.add.staticGroup();
 
-    [
-      [350, 488],
-      [382, 488],
-      [690, 227],
-      [1040, 488],
-      [1072, 488],
-      [1450, 488],
-      [1590, 222],
-      [2020, 488],
-      [2052, 488],
-      [2500, 488],
-      [2620, 217],
-      [3150, 488],
-      [3182, 488],
-      [3550, 222],
-      [4100, 488],
-      [4132, 488],
-      [4460, 202],
-      [5050, 488],
-      [5082, 488],
-      [5480, 217],
-    ].forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
+    this.layout.spikes.forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
   }
@@ -1228,10 +1252,7 @@ class MainScene extends Phaser.Scene {
   createBarriers() {
     this.barriers = this.physics.add.staticGroup();
 
-    this.addBarrier(1950, 3);
-    this.addBarrier(3850, 4);
-    this.addBarrier(4800, 4);
-    this.addBarrier(5600, 5);
+    this.layout.barriers.forEach(({ x, lives }) => this.addBarrier(x, lives));
 
     this.physics.add.collider(this.player, this.barriers);
     this.physics.add.overlap(this.bullets, this.barriers, this.damageBarrier, null, this);
@@ -1241,8 +1262,7 @@ class MainScene extends Phaser.Scene {
     this.logicGates = this.physics.add.staticGroup();
     this.switches = this.physics.add.staticGroup();
 
-    this.addLogicGate({ gateX: 3050, switchX: 2940, label: "AKTIVUJ SPÍNAČ" });
-    this.addLogicGate({ gateX: 5100, switchX: 4960, label: "AKTIVUJ SPÍNAČ" });
+    this.layout.gates.forEach((gate) => this.addLogicGate({ ...gate, label: "AKTIVUJ SPÍNAČ" }));
 
     this.physics.add.collider(this.player, this.logicGates);
     this.physics.add.overlap(this.player, this.switches, this.activateSwitch, null, this);
@@ -1251,7 +1271,7 @@ class MainScene extends Phaser.Scene {
   addLogicGate(config) {
     const gate = this.logicGates.create(config.gateX, 344, "barrier");
     gate.setDisplaySize(44, 320);
-    gate.setTint(0xa78bfa);
+    gate.setTint(this.theme.accent);
     gate.refreshBody();
     const label = this.add.text(config.gateX, 158, config.label, {
       fontFamily: "system-ui, sans-serif",
@@ -1263,7 +1283,7 @@ class MainScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(4);
     gate.setData("label", label);
 
-    const gameSwitch = this.switches.create(config.switchX, 475, "switch");
+    const gameSwitch = this.switches.create(config.switchX, config.switchY ?? 475, "switch");
     gameSwitch.setData("gate", gate);
     gameSwitch.setData("used", false);
   }
@@ -1286,6 +1306,7 @@ class MainScene extends Phaser.Scene {
     const barrier = this.barriers.create(x, 344, "barrier");
     barrier.setDisplaySize(56, 320);
     barrier.setDepth(1);
+    barrier.setTint(this.theme.accent);
     barrier.refreshBody();
     const healthText = this.add.text(x, 158, `Štít: ${lives}`, {
       fontFamily: "system-ui, sans-serif",
@@ -1331,11 +1352,7 @@ class MainScene extends Phaser.Scene {
   createCheckpoints() {
     this.checkpoints = this.physics.add.staticGroup();
 
-    this.addCheckpoint(1110, 350, 1110, 360);
-    this.addCheckpoint(2150, 455, 2150, 470);
-    this.addCheckpoint(3070, 350, 3070, 360);
-    this.addCheckpoint(4240, 260, 4240, 270);
-    this.addCheckpoint(5000, 345, 5000, 350);
+    this.layout.checkpoints.forEach(([x, y, respawnX, respawnY]) => this.addCheckpoint(x, y, respawnX, respawnY));
 
     this.physics.add.overlap(this.player, this.checkpoints, this.activateCheckpoint, null, this);
   }
@@ -1372,117 +1389,7 @@ class MainScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
 
-    this.createEnemy({
-      x: 420,
-      y: 280,
-      texture: "enemy",
-      type: "patrol",
-      lives: 2,
-      minX: 320,
-      maxX: 520,
-      speed: ENEMY_SPEED,
-    });
-    this.createEnemy({
-      x: 1350,
-      y: 285,
-      texture: "hopper",
-      type: "hopper",
-      lives: 1,
-      minX: 1245,
-      maxX: 1455,
-      speed: 95,
-      nextActionAt: 700,
-    });
-    this.createEnemy({
-      x: 1800,
-      y: 348,
-      texture: "sentry",
-      type: "sentry",
-      lives: 3,
-      nextActionAt: 1200,
-    });
-    this.createEnemy({
-      x: 3290,
-      y: 292,
-      texture: "enemy",
-      type: "patrol",
-      lives: 2,
-      minX: 3200,
-      maxX: 3380,
-      speed: ENEMY_SPEED,
-    });
-    this.createEnemy({
-      x: 3740,
-      y: 348,
-      texture: "sentry",
-      type: "sentry",
-      lives: 3,
-      nextActionAt: 2400,
-    });
-    this.createEnemy({
-      x: 4240,
-      y: 280,
-      texture: "hopper",
-      type: "hopper",
-      lives: 1,
-      minX: 4140,
-      maxX: 4340,
-      speed: 105,
-      nextActionAt: 1700,
-    });
-    this.createEnemy({
-      x: 4460,
-      y: 193,
-      texture: "enemy",
-      type: "patrol",
-      lives: 2,
-      minX: 4360,
-      maxX: 4560,
-      speed: 90,
-    });
-    this.createEnemy({
-      x: 4700,
-      y: 337,
-      texture: "sentry",
-      type: "sentry",
-      lives: 3,
-      nextActionAt: 3400,
-    });
-    this.createEnemy({
-      x: 5220,
-      y: 275,
-      texture: "hopper",
-      type: "hopper",
-      lives: 1,
-      minX: 5120,
-      maxX: 5320,
-      speed: 110,
-      nextActionAt: 2900,
-    });
-    this.createEnemy({
-      x: 5480,
-      y: 208,
-      texture: "enemy",
-      type: "patrol",
-      lives: 2,
-      minX: 5380,
-      maxX: 5580,
-      speed: 95,
-    });
-    this.createEnemy({
-      x: 5700,
-      y: 347,
-      texture: "sentry",
-      type: "sentry",
-      lives: 3,
-      nextActionAt: 4100,
-    });
-
-    if (this.sector === 2) {
-      this.createEnemy({ x: 2350, y: 285, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 2000 });
-      this.createEnemy({ x: 4020, y: 365, texture: "enemy", type: "patrol", lives: 2, minX: 3920, maxX: 4120, speed: 105 });
-      this.createEnemy({ x: 5000, y: 360, texture: "hopper", type: "hopper", lives: 2, minX: 4900, maxX: 5100, speed: 120, nextActionAt: 2600 });
-    }
+    this.layout.enemies.forEach((enemy) => this.createEnemy(enemy));
 
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.bullets, this.enemies, this.damageEnemy, null, this);
@@ -1495,11 +1402,14 @@ class MainScene extends Phaser.Scene {
     this.bossLives = BOSS_LIVES;
     this.bossDefeated = false;
     this.bossNextShotAt = 1600;
-    this.boss = this.physics.add.sprite(5700, 458, "boss");
+    this.bossStartX = this.levelWidth - 140;
+    this.bossMinX = this.bossStartX - 40;
+    this.bossMaxX = this.bossStartX + 40;
+    this.boss = this.physics.add.sprite(this.bossStartX, 458, "boss");
     this.boss.setDepth(2);
     this.boss.setVelocityX(-55);
     this.physics.add.collider(this.boss, this.platforms);
-    this.bossHealthText = this.add.text(5700, 360, `BOSS: ${this.bossLives}`, {
+    this.bossHealthText = this.add.text(this.bossStartX, 360, `BOSS: ${this.bossLives}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
@@ -1538,10 +1448,10 @@ class MainScene extends Phaser.Scene {
     this.bossBarFill.setVisible(isBossInView);
     this.bossBarLabel.setVisible(isBossInView);
 
-    if (this.boss.x <= 5665) {
+    if (this.boss.x <= this.bossMinX) {
       this.boss.setVelocityX(55);
       this.boss.setFlipX(false);
-    } else if (this.boss.x >= 5715) {
+    } else if (this.boss.x >= this.bossMaxX) {
       this.boss.setVelocityX(-55);
       this.boss.setFlipX(true);
     }
