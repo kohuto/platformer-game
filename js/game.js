@@ -58,6 +58,75 @@ function saveProgress(progress) {
   localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
 }
 
+const UI_COLORS = {
+  panel: 0x0b1224,
+  panelEdge: 0x263a60,
+  text: "#e6f4ff",
+  muted: "#8ea3c7",
+  cyan: 0x35d6e8,
+  purple: 0x9b7cff,
+  green: 0x41d6a0,
+  red: 0xff7087,
+  yellow: 0xffcc66,
+};
+
+function addSceneBackdrop(scene, accent = UI_COLORS.cyan) {
+  scene.cameras.main.setBackgroundColor("#050914");
+  const backdrop = scene.add.graphics();
+  backdrop.fillStyle(0x050914);
+  backdrop.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  backdrop.fillStyle(accent, 0.13);
+  backdrop.fillCircle(130, 90, 180);
+  backdrop.fillStyle(UI_COLORS.purple, 0.1);
+  backdrop.fillCircle(830, 450, 220);
+  backdrop.lineStyle(1, 0x243757, 0.28);
+  for (let x = -100; x < GAME_WIDTH + 140; x += 70) {
+    backdrop.lineBetween(x, 540, x + 170, 330);
+  }
+  for (let y = 350; y < 560; y += 34) {
+    backdrop.lineBetween(0, y, GAME_WIDTH, y);
+  }
+}
+
+function createUiButton(scene, { x, y, width = 280, label, accent = UI_COLORS.cyan, onClick, secondary = false }) {
+  const height = 54;
+  const fill = secondary ? 0x15213a : accent;
+  const labelColor = secondary ? UI_COLORS.text : "#07111f";
+  const button = scene.add.rectangle(x, y, width, height, fill)
+    .setStrokeStyle(1, secondary ? UI_COLORS.panelEdge : 0xb9f7ff)
+    .setInteractive({ useHandCursor: true });
+  const text = scene.add.text(x, y, label, {
+    fontFamily: "system-ui, sans-serif",
+    fontSize: "17px",
+    fontStyle: "bold",
+    color: labelColor,
+    letterSpacing: 1,
+  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  const activate = () => onClick();
+  const hoverIn = () => {
+    button.setScale(1.025);
+    text.setScale(1.025);
+    if (secondary) button.setFillStyle(0x20345a);
+  };
+  const hoverOut = () => {
+    button.setScale(1);
+    text.setScale(1);
+    if (secondary) button.setFillStyle(fill);
+  };
+  [button, text].forEach((item) => {
+    item.on("pointerdown", activate);
+    item.on("pointerover", hoverIn);
+    item.on("pointerout", hoverOut);
+  });
+  return { button, text };
+}
+
+function createUiCard(scene, x, y, width, height) {
+  scene.add.rectangle(x, y, width, height, UI_COLORS.panel, 0.94)
+    .setStrokeStyle(1, UI_COLORS.panelEdge);
+  scene.add.rectangle(x - width / 2 + 1, y - height / 2 + 1, width - 2, 3, UI_COLORS.cyan, 0.72);
+}
+
 class MenuScene extends Phaser.Scene {
   constructor() {
     super("MenuScene");
@@ -67,110 +136,105 @@ class MenuScene extends Phaser.Scene {
     this.selectedDifficulty = "normal";
     this.selectedSector = 1;
     this.progress = loadProgress();
-    this.cameras.main.setBackgroundColor("#071126");
-    this.add.circle(110, 90, 72, 0x22d3ee, 0.2);
-    this.add.circle(850, 460, 130, 0xa78bfa, 0.16);
+    addSceneBackdrop(this);
 
-    this.add.text(480, 105, "SKOK DO DOBRODRUŽSTVÍ", {
+    this.add.text(480, 78, "NEON HORIZON", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "18px",
+      fontSize: "14px",
       fontStyle: "bold",
       color: "#67e8f9",
       letterSpacing: 4,
     }).setOrigin(0.5);
 
-    this.add.text(480, 165, "Platformer Game", {
+    this.add.text(480, 126, "Skok do dobrodružství", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "52px",
+      fontSize: "42px",
       fontStyle: "bold",
       color: "#e0f2fe",
     }).setOrigin(0.5);
 
-    const controlsPanel = this.add.rectangle(480, 315, 500, 180, 0x0f172a, 0.82)
-      .setStrokeStyle(2, 0x22d3ee);
-    controlsPanel.setInteractive({ useHandCursor: false });
-
-    this.add.text(480, 255, "OVLÁDÁNÍ", {
+    this.add.text(480, 157, "Vyber sektor a obtížnost. Všechno ovládneš myší.", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "17px",
+      fontSize: "16px",
+      color: UI_COLORS.muted,
+    }).setOrigin(0.5);
+
+    createUiCard(this, 310, 316, 410, 270);
+    createUiCard(this, 690, 316, 290, 270);
+
+    this.add.text(310, 220, "VÝPRAVA", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "13px",
       fontStyle: "bold",
-      color: "#facc15",
+      color: "#67e8f9",
+      letterSpacing: 2,
     }).setOrigin(0.5);
 
-    this.add.text(480, 300, "Pohyb doleva / doprava:  ← →  nebo  A / D", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "19px",
-      color: "#e2e8f0",
-    }).setOrigin(0.5);
+    this.sectorCards = [];
+    this.createSectorCard(310, 265, 1, "NEONOVÝ SEKTOR", "Základní expedice", true);
+    this.createSectorCard(310, 347, 2, "SEKTOR VÝZVY", this.progress.unlockedSector >= 2 ? "Více nepřátel, silnější rytmus" : "Dokonči Sektor 1 pro odemčení", this.progress.unlockedSector >= 2);
 
-    this.add.text(480, 345, "Skok:  ↑, W nebo mezerník", {
+    this.add.text(690, 220, "OBTÍŽNOST", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "19px",
-      color: "#e2e8f0",
-    }).setOrigin(0.5);
-
-    this.add.text(480, 380, "Střelba:  X   ·   Dash: Shift", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "19px",
-      color: "#e2e8f0",
-    }).setOrigin(0.5);
-
-    const startButton = this.add.rectangle(480, 480, 280, 56, 0x22d3ee)
-      .setStrokeStyle(3, 0xa5f3fc)
-      .setInteractive({ useHandCursor: true });
-    const startLabel = this.add.text(480, 480, "ZAČÍT HRU", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "24px",
+      fontSize: "13px",
       fontStyle: "bold",
-      color: "#082f49",
+      color: "#67e8f9",
+      letterSpacing: 2,
     }).setOrigin(0.5);
+    this.difficultyButtons = [];
+    [
+      ["easy", "LEHKÁ", "Více času na chybu"],
+      ["normal", "NORMÁLNÍ", "Doporučená volba"],
+      ["hard", "TĚŽKÁ", "Rychlá reakce nutná"],
+    ].forEach(([key, label, detail], index) => this.createDifficultyButton(690, 263 + index * 54, key, label, detail));
 
     const startGame = () => this.scene.start("MainScene", {
       difficulty: this.selectedDifficulty,
       sector: this.selectedSector,
     });
-    startButton.on("pointerover", () => startButton.setFillStyle(0x67e8f9));
-    startButton.on("pointerout", () => startButton.setFillStyle(0x22d3ee));
-    startButton.on("pointerdown", startGame);
-    startLabel.setInteractive({ useHandCursor: true }).on("pointerdown", startGame);
-
-    this.add.text(480, 420, "Obtížnost:  1 Lehká  ·  2 Normální  ·  3 Těžká  ·  S: sektor", {
+    createUiButton(this, { x: 480, y: 465, width: 330, label: "SPUSTIT VÝPRAVU", onClick: startGame });
+    this.add.text(480, 512, `Rekord ${this.progress.bestTime === null ? "—" : formatDuration(this.progress.bestTime)}   •   Dokončení ${this.progress.wins}`, {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#bae6fd",
-    }).setOrigin(0.5);
-
-    this.difficultyText = this.add.text(480, 445, "Vybráno: NORMÁLNÍ · SEKTOR 1", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      fontStyle: "bold",
-      color: "#facc15",
-    }).setOrigin(0.5);
-
-    this.add.text(480, 530, `Rekord: ${this.progress.bestTime === null ? "zatím žádný" : formatDuration(this.progress.bestTime)}  ·  Dokončení: ${this.progress.wins}  ·  Sektor 2: ${this.progress.unlockedSector >= 2 ? "odemčen" : "zamčen"}`, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "15px",
-      color: "#cbd5e1",
+      fontSize: "14px",
+      color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
     this.input.keyboard.once("keydown-ENTER", startGame);
-    this.input.keyboard.once("keydown-SPACE", startGame);
-    ["ONE", "TWO", "THREE"].forEach((key, index) => {
-      this.input.keyboard.on(`keydown-${key}`, () => {
-        this.selectedDifficulty = ["easy", "normal", "hard"][index];
-        this.updateSelectionText();
-      });
-    });
-    this.input.keyboard.on("keydown-S", () => {
-      if (this.progress.unlockedSector >= 2) {
-        this.selectedSector = this.selectedSector === 1 ? 2 : 1;
-        this.updateSelectionText();
-      }
-    });
+    this.refreshMenuSelection();
   }
 
-  updateSelectionText() {
-    this.difficultyText.setText(`Vybráno: ${DIFFICULTIES[this.selectedDifficulty].label} · SEKTOR ${this.selectedSector}`);
+  createSectorCard(x, y, sector, title, detail, unlocked) {
+    const card = this.add.rectangle(x, y, 360, 68, unlocked ? 0x14233e : 0x0d1525)
+      .setStrokeStyle(1, unlocked ? UI_COLORS.panelEdge : 0x1c2941);
+    if (unlocked) card.setInteractive({ useHandCursor: true });
+    const titleText = this.add.text(x - 154, y - 12, title, { fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "bold", color: unlocked ? UI_COLORS.text : "#52617b" }).setOrigin(0, 0.5);
+    const detailText = this.add.text(x - 154, y + 13, detail, { fontFamily: "system-ui, sans-serif", fontSize: "12px", color: unlocked ? UI_COLORS.muted : "#52617b" }).setOrigin(0, 0.5);
+    const marker = this.add.circle(x + 151, y, 7, unlocked ? UI_COLORS.cyan : 0x334155);
+    if (unlocked) card.on("pointerdown", () => { this.selectedSector = sector; this.refreshMenuSelection(); });
+    this.sectorCards.push({ sector, card, marker, titleText, detailText, unlocked });
+  }
+
+  createDifficultyButton(x, y, key, label, detail) {
+    const button = this.add.rectangle(x, y, 238, 45, 0x14233e).setStrokeStyle(1, UI_COLORS.panelEdge).setInteractive({ useHandCursor: true });
+    const labelText = this.add.text(x - 104, y - 8, label, { fontFamily: "system-ui, sans-serif", fontSize: "14px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0, 0.5);
+    const detailText = this.add.text(x - 104, y + 10, detail, { fontFamily: "system-ui, sans-serif", fontSize: "11px", color: UI_COLORS.muted }).setOrigin(0, 0.5);
+    button.on("pointerdown", () => { this.selectedDifficulty = key; this.refreshMenuSelection(); });
+    this.difficultyButtons.push({ key, button, labelText, detailText });
+  }
+
+  refreshMenuSelection() {
+    this.sectorCards.forEach((item) => {
+      const active = item.sector === this.selectedSector;
+      item.card.setFillStyle(active ? 0x1a3851 : item.unlocked ? 0x14233e : 0x0d1525);
+      item.card.setStrokeStyle(active ? 2 : 1, active ? UI_COLORS.cyan : item.unlocked ? UI_COLORS.panelEdge : 0x1c2941);
+      item.marker.setFillStyle(active ? UI_COLORS.yellow : item.unlocked ? UI_COLORS.cyan : 0x334155);
+    });
+    this.difficultyButtons.forEach((item) => {
+      const active = item.key === this.selectedDifficulty;
+      item.button.setFillStyle(active ? 0x243d62 : 0x14233e);
+      item.button.setStrokeStyle(active ? 2 : 1, active ? UI_COLORS.purple : UI_COLORS.panelEdge);
+      item.labelText.setColor(active ? "#ddd6fe" : UI_COLORS.text);
+    });
   }
 }
 
@@ -188,40 +252,31 @@ class GameOverScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#120b25");
-    this.add.circle(125, 445, 160, 0xfb7185, 0.16);
-    this.add.circle(830, 90, 105, 0xa78bfa, 0.14);
+    addSceneBackdrop(this, UI_COLORS.red);
+    createUiCard(this, 480, 292, 520, 350);
 
-    this.add.text(480, 125, "Konec hry", {
+    this.add.text(480, 164, "VÝPRAVA SKONČILA", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "54px",
+      fontSize: "14px",
       fontStyle: "bold",
-      color: "#fecaca",
+      color: "#ff9bab",
+      letterSpacing: 3,
+    }).setOrigin(0.5);
+    this.add.text(480, 212, "Zkus to znovu", {
+      fontFamily: "system-ui, sans-serif", fontSize: "38px", fontStyle: "bold", color: UI_COLORS.text,
     }).setOrigin(0.5);
 
-    this.add.text(480, 205, `Nasbírané mince: ${this.finalScore}`, {
+    this.add.text(480, 274, `Mince  ${this.finalScore}    ·    Eliminace  ${this.finalKills}    ·    Čas  ${formatDuration(this.finalTime)}`, {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "24px",
-      color: "#fef3c7",
-    }).setOrigin(0.5);
-
-    this.add.text(480, 242, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "19px",
-      color: "#fed7aa",
+      fontSize: "17px",
+      color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
     const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
     const returnToMenu = () => this.scene.start("MenuScene");
 
-    this.createButton(480, 310, "RESTART HRY", 0x22c55e, 0x052e16, restartGame);
-    this.createButton(480, 395, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
-
-    this.add.text(480, 485, "Enter / R: restart  ·  Esc / M: úvodní menu", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#cbd5e1",
-    }).setOrigin(0.5);
+    createUiButton(this, { x: 480, y: 350, width: 330, label: "ZKUSIT ZNOVU", accent: UI_COLORS.red, onClick: restartGame });
+    createUiButton(this, { x: 480, y: 418, width: 330, label: "ZPĚT DO HLAVNÍ NABÍDKY", onClick: returnToMenu, secondary: true });
 
     this.input.keyboard.once("keydown-ENTER", restartGame);
     this.input.keyboard.once("keydown-R", restartGame);
@@ -230,20 +285,7 @@ class GameOverScene extends Phaser.Scene {
   }
 
   createButton(x, y, label, backgroundColor, textColor, onClick) {
-    const button = this.add.rectangle(x, y, 300, 62, backgroundColor)
-      .setStrokeStyle(3, 0xe2e8f0)
-      .setInteractive({ useHandCursor: true });
-    const text = this.add.text(x, y, label, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "22px",
-      fontStyle: "bold",
-      color: textColor,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-    button.on("pointerover", () => button.setScale(1.04));
-    button.on("pointerout", () => button.setScale(1));
-    button.on("pointerdown", onClick);
-    text.on("pointerdown", onClick);
+    createUiButton(this, { x, y, label, accent: backgroundColor, onClick, secondary: false });
   }
 }
 
@@ -261,30 +303,27 @@ class VictoryScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#061b2b");
-    this.add.circle(130, 100, 120, 0x22d3ee, 0.14);
-    this.add.circle(820, 450, 165, 0xfacc15, 0.12);
-    this.add.rectangle(480, 275, 580, 365, 0x0f172a, 0.8)
-      .setStrokeStyle(3, 0x67e8f9);
+    addSceneBackdrop(this, UI_COLORS.green);
+    createUiCard(this, 480, 292, 560, 370);
 
-    this.add.text(480, 135, "Vítězství!", {
+    this.add.text(480, 154, "SEKTOR ZAJIŠTĚN", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "58px",
+      fontSize: "14px",
       fontStyle: "bold",
-      color: "#a5f3fc",
-      stroke: "#083344",
-      strokeThickness: 5,
+      color: "#8ff5c7",
+      letterSpacing: 3,
     }).setOrigin(0.5);
+    this.add.text(480, 202, "Vítězství", { fontFamily: "system-ui, sans-serif", fontSize: "42px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0.5);
 
     this.add.text(480, 210, "Posbíral/a jsi všechny mince a porazil/a bosse.", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "22px",
-      color: "#e0f2fe",
+      fontSize: "17px",
+      color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
     this.add.text(480, 250, `Celkem mincí: ${this.finalScore}`, {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "25px",
+      fontSize: "20px",
       fontStyle: "bold",
       color: "#fde68a",
     }).setOrigin(0.5);
@@ -292,8 +331,8 @@ class VictoryScene extends Phaser.Scene {
     const challengeStatus = this.finalTime <= TIME_CHALLENGE_SECONDS ? "Časová výzva splněna!" : "Časová výzva: zkus to pod 5:00";
     this.add.text(480, 282, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "18px",
-      color: "#bae6fd",
+      fontSize: "16px",
+      color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
     this.add.text(480, 305, challengeStatus, {
@@ -306,14 +345,8 @@ class VictoryScene extends Phaser.Scene {
     const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, sector: this.sector });
     const returnToMenu = () => this.scene.start("MenuScene");
 
-    this.createButton(480, 355, "HRÁT ZNOVU", 0x22d3ee, 0x083344, restartGame);
-    this.createButton(480, 430, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
-
-    this.add.text(480, 505, "Enter / R: hrát znovu  ·  Esc / M: úvodní menu", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#bae6fd",
-    }).setOrigin(0.5);
+    createUiButton(this, { x: 480, y: 374, width: 330, label: "HRÁT ZNOVU", accent: UI_COLORS.green, onClick: restartGame });
+    createUiButton(this, { x: 480, y: 440, width: 330, label: "ZPĚT DO HLAVNÍ NABÍDKY", onClick: returnToMenu, secondary: true });
 
     this.input.keyboard.once("keydown-ENTER", restartGame);
     this.input.keyboard.once("keydown-R", restartGame);
@@ -322,20 +355,7 @@ class VictoryScene extends Phaser.Scene {
   }
 
   createButton(x, y, label, backgroundColor, textColor, onClick) {
-    const button = this.add.rectangle(x, y, 300, 58, backgroundColor)
-      .setStrokeStyle(3, 0xe0f2fe)
-      .setInteractive({ useHandCursor: true });
-    const text = this.add.text(x, y, label, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "22px",
-      fontStyle: "bold",
-      color: textColor,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-    button.on("pointerover", () => button.setScale(1.04));
-    button.on("pointerout", () => button.setScale(1));
-    button.on("pointerdown", onClick);
-    text.on("pointerdown", onClick);
+    createUiButton(this, { x, y, label, accent: backgroundColor, onClick });
   }
 }
 
@@ -345,17 +365,17 @@ class PauseScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.rectangle(480, 270, GAME_WIDTH, GAME_HEIGHT, 0x0f172a, 0.72);
+    this.add.rectangle(480, 270, GAME_WIDTH, GAME_HEIGHT, 0x030712, 0.78);
+    createUiCard(this, 480, 270, 460, 310);
 
-    this.add.rectangle(480, 270, 520, 350, 0x1e293b, 0.96)
-      .setStrokeStyle(3, 0x93c5fd);
-
-    this.add.text(480, 155, "Hra pozastavena", {
+    this.add.text(480, 168, "PAUZA", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "42px",
+      fontSize: "14px",
       fontStyle: "bold",
-      color: "#f8fafc",
+      color: "#67e8f9",
+      letterSpacing: 3,
     }).setOrigin(0.5);
+    this.add.text(480, 208, "Nabij síly", { fontFamily: "system-ui, sans-serif", fontSize: "32px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0.5);
 
     const resumeGame = () => {
       this.scene.resume("MainScene");
@@ -370,15 +390,9 @@ class PauseScene extends Phaser.Scene {
       this.scene.start("MenuScene");
     };
 
-    this.createButton(480, 245, "POKRAČOVAT", 0x22c55e, 0x052e16, resumeGame);
-    this.createButton(480, 325, "RESTART HRY", 0xf59e0b, 0x451a03, restartGame);
-    this.createButton(480, 405, "ÚVODNÍ MENU", 0x475569, 0xf8fafc, returnToMenu);
-
-    this.add.text(480, 485, "Esc: pokračovat  ·  R: restart  ·  M: úvodní menu", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
-      color: "#cbd5e1",
-    }).setOrigin(0.5);
+    createUiButton(this, { x: 480, y: 276, width: 300, label: "POKRAČOVAT", accent: UI_COLORS.green, onClick: resumeGame });
+    createUiButton(this, { x: 480, y: 338, width: 300, label: "RESTARTOVAT VÝPRAVU", accent: UI_COLORS.yellow, onClick: restartGame });
+    createUiButton(this, { x: 480, y: 400, width: 300, label: "HLAVNÍ NABÍDKA", onClick: returnToMenu, secondary: true });
 
     this.input.keyboard.once("keydown-ESC", resumeGame);
     this.input.keyboard.once("keydown-R", restartGame);
@@ -386,20 +400,7 @@ class PauseScene extends Phaser.Scene {
   }
 
   createButton(x, y, label, backgroundColor, textColor, onClick) {
-    const button = this.add.rectangle(x, y, 300, 56, backgroundColor)
-      .setStrokeStyle(3, 0xe2e8f0)
-      .setInteractive({ useHandCursor: true });
-    const text = this.add.text(x, y, label, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "21px",
-      fontStyle: "bold",
-      color: textColor,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-    button.on("pointerover", () => button.setScale(1.04));
-    button.on("pointerout", () => button.setScale(1));
-    button.on("pointerdown", onClick);
-    text.on("pointerdown", onClick);
+    createUiButton(this, { x, y, label, accent: backgroundColor, onClick });
   }
 }
 
@@ -760,74 +761,66 @@ class MainScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
 
-    this.add.text(22, 20, this.sector === 2 ? "SEKTOR 2: VÝZVA" : "NEONOVÝ SEKTOR", {
+    this.add.rectangle(480, 30, 930, 46, 0x081226, 0.88)
+      .setStrokeStyle(1, 0x274569, 0.9)
+      .setScrollFactor(0)
+      .setDepth(20);
+    this.add.text(34, 30, this.sector === 2 ? "S2" : "S1", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "20px",
+      fontSize: "15px",
       fontStyle: "bold",
-      color: "#e0f2fe",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
+      color: "#67e8f9",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
 
-    this.livesText = this.add.text(620, 20, "Životy:", {
+    this.livesText = this.add.text(88, 30, "ŽIVOTY", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "20px",
+      fontSize: "12px",
       fontStyle: "bold",
-      color: "#e0f2fe",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
+      color: "#8ea3c7",
+      letterSpacing: 1,
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
 
     this.lifeIcons = Array.from({ length: MAX_LIVES }, (_value, index) => (
-      this.add.image(715 + index * 29, 31, "health")
-        .setDisplaySize(24, 22)
+      this.add.image(154 + index * 25, 30, "health")
+        .setDisplaySize(20, 18)
         .setScrollFactor(0)
+        .setDepth(21)
     ));
 
-    this.scoreText = this.add.text(805, 20, "Mince: 0", {
+    this.scoreText = this.add.text(245, 30, "MINCE 0", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "20px",
+      fontSize: "14px",
       fontStyle: "bold",
       color: "#fef3c7",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
 
-    this.timeText = this.add.text(445, 20, "Čas: 0:00", {
+    this.ammoText = this.add.text(365, 30, `NÁBOJE ${MAX_AMMO}/${MAX_AMMO}`, {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "20px",
+      fontSize: "14px",
+      fontStyle: "bold",
+      color: "#fef3c7",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
+
+    this.timeText = this.add.text(535, 30, "ČAS 0:00", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "14px",
       fontStyle: "bold",
       color: "#e0f2fe",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
 
-    this.ammoText = this.add.text(22, 48, `Náboje: ${MAX_AMMO} / ${MAX_AMMO}`, {
+    this.dashText = this.add.text(665, 30, "DASH PŘIPRAVEN", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "18px",
-      fontStyle: "bold",
-      color: "#fef3c7",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
-
-    this.killText = this.add.text(800, 48, "Eliminace: 0", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "17px",
-      fontStyle: "bold",
-      color: "#fda4af",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
-
-    this.dashText = this.add.text(500, 48, "Dash: připraven", {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "17px",
+      fontSize: "13px",
       fontStyle: "bold",
       color: "#a5f3fc",
-      stroke: "#020617",
-      strokeThickness: 4,
-    }).setScrollFactor(0);
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
+
+    this.killText = this.add.text(835, 30, "× 0", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "14px",
+      fontStyle: "bold",
+      color: "#ff9bab",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(21);
   }
 
   addPlatform(x, y, widthInTiles) {
@@ -1011,7 +1004,7 @@ class MainScene extends Phaser.Scene {
   collectCoin(_player, coin) {
     coin.disableBody(true, true);
     this.score += 1;
-    this.scoreText.setText(`Mince: ${this.score}`);
+    this.scoreText.setText(`MINCE ${this.score}`);
     playTone(this, 740, 0.09, "triangle", 0.035);
     this.createBurst(coin.x, coin.y, 0xfacc15);
 
@@ -1154,7 +1147,7 @@ class MainScene extends Phaser.Scene {
   }
 
   updateAmmoText() {
-    this.ammoText.setText(`Náboje: ${this.ammo} / ${MAX_AMMO}`);
+    this.ammoText.setText(`NÁBOJE ${this.ammo}/${MAX_AMMO}`);
   }
 
   getRunStats() {
@@ -1169,22 +1162,21 @@ class MainScene extends Phaser.Scene {
 
   updateRunHud(time) {
     const elapsedSeconds = Math.floor((time - this.startedAt) / 1000);
-    this.timeText.setText(`Čas: ${formatDuration(elapsedSeconds)}`);
-    this.killText.setText(`Eliminace: ${this.kills}`);
+    this.timeText.setText(`ČAS ${formatDuration(elapsedSeconds)}`);
+    this.killText.setText(`× ${this.kills}`);
 
     const remaining = Math.max(0, this.nextDashAt - time);
     if (remaining === 0) {
-      this.dashText.setText("Dash: připraven");
+      this.dashText.setText("DASH PŘIPRAVEN");
       this.dashText.setColor("#a5f3fc");
     } else {
-      this.dashText.setText(`Dash: ${(remaining / 1000).toFixed(1)} s`);
+      this.dashText.setText(`DASH ${(remaining / 1000).toFixed(1)} S`);
       this.dashText.setColor("#94a3b8");
     }
 
     if (this.weaponMode === "spread") {
-      this.ammoText.setText(`Náboje: ${this.ammo} / ${MAX_AMMO}  ·  Trojstřela: ${Math.max(0, Math.ceil((this.weaponEndsAt - time) / 1000))} s`);
-    } else {
-      this.updateAmmoText();
+      this.dashText.setText(`TROJSTŘELA ${Math.max(0, Math.ceil((this.weaponEndsAt - time) / 1000))} S`);
+      this.dashText.setColor("#d8b4fe");
     }
   }
 
