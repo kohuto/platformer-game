@@ -365,18 +365,59 @@ class MainScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(100, 300, "player");
     this.player.setBounce(0.05);
     this.player.setCollideWorldBounds(true);
+    this.player.setDepth(1);
     this.physics.add.collider(this.player, this.platforms);
+    this.playerLimbs = this.add.graphics().setDepth(0.5);
     this.weapon = this.add.image(this.player.x + 24, this.player.y + 4, "weapon")
-      .setDepth(1);
+      .setDepth(2);
+    this.walkCycle = 0;
     this.lives = 3;
     this.isHurt = false;
     this.gameOver = false;
+    this.updatePlayerLimbs(0, false);
   }
 
   updateWeapon() {
     const direction = this.player.flipX ? -1 : 1;
     this.weapon.setPosition(this.player.x + direction * 24, this.player.y + 4);
     this.weapon.setFlipX(this.player.flipX);
+  }
+
+  updatePlayerLimbs(delta, isWalking) {
+    if (isWalking) {
+      this.walkCycle += delta * 0.014;
+    } else {
+      this.walkCycle = 0;
+    }
+
+    const stride = isWalking ? Math.sin(this.walkCycle) * 7 : 0;
+    const armSwing = stride * 0.65;
+    const direction = this.player.flipX ? -1 : 1;
+    const x = this.player.x;
+    const y = this.player.y;
+
+    this.playerLimbs.clear();
+    this.playerLimbs.lineStyle(5, 0x1e3a8a, 1);
+
+    this.playerLimbs.lineBetween(x - 7, y + 16, x - 9 + stride, y + 30);
+    this.playerLimbs.lineBetween(x + 7, y + 16, x + 9 - stride, y + 30);
+
+    this.playerLimbs.lineBetween(
+      x - direction * 10,
+      y - 3,
+      x - direction * 19,
+      y + 6 - armSwing,
+    );
+    this.playerLimbs.lineBetween(
+      x + direction * 10,
+      y - 3,
+      x + direction * 21,
+      y + 6 + armSwing,
+    );
+
+    this.playerLimbs.fillStyle(0xfbbf24, 1);
+    this.playerLimbs.fillCircle(x - direction * 19, y + 6 - armSwing, 3);
+    this.playerLimbs.fillCircle(x + direction * 21, y + 6 + armSwing, 3);
   }
 
   createCamera() {
@@ -548,6 +589,7 @@ class MainScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.player.setTint(0xef4444);
     this.updateWeapon();
+    this.updatePlayerLimbs(0, false);
 
     this.time.delayedCall(900, () => {
       this.isHurt = false;
@@ -567,7 +609,7 @@ class MainScene extends Phaser.Scene {
     this.scene.launch("PauseScene");
   }
 
-  update(time) {
+  update(time, delta) {
     if (Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
       this.pauseGame();
       return;
@@ -602,6 +644,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.updateWeapon();
+    this.updatePlayerLimbs(delta, (movingLeft || movingRight) && this.player.body.blocked.down);
   }
 }
 
