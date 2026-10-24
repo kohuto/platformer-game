@@ -153,6 +153,70 @@ class GameOverScene extends Phaser.Scene {
   }
 }
 
+class PauseScene extends Phaser.Scene {
+  constructor() {
+    super("PauseScene");
+  }
+
+  create() {
+    this.add.rectangle(480, 270, GAME_WIDTH, GAME_HEIGHT, 0x0f172a, 0.72);
+
+    this.add.rectangle(480, 270, 520, 350, 0x1e293b, 0.96)
+      .setStrokeStyle(3, 0x93c5fd);
+
+    this.add.text(480, 155, "Hra pozastavena", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "42px",
+      fontStyle: "bold",
+      color: "#f8fafc",
+    }).setOrigin(0.5);
+
+    const resumeGame = () => {
+      this.scene.resume("MainScene");
+      this.scene.stop();
+    };
+    const restartGame = () => {
+      this.scene.stop("MainScene");
+      this.scene.start("MainScene");
+    };
+    const returnToMenu = () => {
+      this.scene.stop("MainScene");
+      this.scene.start("MenuScene");
+    };
+
+    this.createButton(480, 245, "POKRAČOVAT", 0x22c55e, 0x052e16, resumeGame);
+    this.createButton(480, 325, "RESTART HRY", 0xf59e0b, 0x451a03, restartGame);
+    this.createButton(480, 405, "ÚVODNÍ MENU", 0x475569, 0xf8fafc, returnToMenu);
+
+    this.add.text(480, 485, "Esc: pokračovat  ·  R: restart  ·  M: úvodní menu", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      color: "#cbd5e1",
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once("keydown-ESC", resumeGame);
+    this.input.keyboard.once("keydown-R", restartGame);
+    this.input.keyboard.once("keydown-M", returnToMenu);
+  }
+
+  createButton(x, y, label, backgroundColor, textColor, onClick) {
+    const button = this.add.rectangle(x, y, 300, 56, backgroundColor)
+      .setStrokeStyle(3, 0xe2e8f0)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add.text(x, y, label, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "21px",
+      fontStyle: "bold",
+      color: textColor,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    button.on("pointerover", () => button.setScale(1.04));
+    button.on("pointerout", () => button.setScale(1));
+    button.on("pointerdown", onClick);
+    text.on("pointerdown", onClick);
+  }
+}
+
 class MainScene extends Phaser.Scene {
   constructor() {
     super("MainScene");
@@ -475,9 +539,20 @@ class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,D");
     this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+  }
+
+  pauseGame() {
+    this.scene.pause();
+    this.scene.launch("PauseScene");
   }
 
   update(time) {
+    if (Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
+      this.pauseGame();
+      return;
+    }
+
     this.updateEnemy();
 
     if (this.gameOver || this.isHurt) {
@@ -520,5 +595,5 @@ new Phaser.Game({
       debug: false,
     },
   },
-  scene: [MenuScene, MainScene, GameOverScene],
+  scene: [MenuScene, MainScene, PauseScene, GameOverScene],
 });
