@@ -154,6 +154,80 @@ class GameOverScene extends Phaser.Scene {
   }
 }
 
+class VictoryScene extends Phaser.Scene {
+  constructor() {
+    super("VictoryScene");
+  }
+
+  init(data) {
+    this.finalScore = data.score ?? 0;
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor("#061b2b");
+    this.add.circle(130, 100, 120, 0x22d3ee, 0.14);
+    this.add.circle(820, 450, 165, 0xfacc15, 0.12);
+    this.add.rectangle(480, 275, 580, 365, 0x0f172a, 0.8)
+      .setStrokeStyle(3, 0x67e8f9);
+
+    this.add.text(480, 135, "Vítězství!", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "58px",
+      fontStyle: "bold",
+      color: "#a5f3fc",
+      stroke: "#083344",
+      strokeThickness: 5,
+    }).setOrigin(0.5);
+
+    this.add.text(480, 210, "Posbíral/a jsi všechny mince v levelu.", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "22px",
+      color: "#e0f2fe",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 250, `Celkem mincí: ${this.finalScore}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "25px",
+      fontStyle: "bold",
+      color: "#fde68a",
+    }).setOrigin(0.5);
+
+    const restartGame = () => this.scene.start("MainScene");
+    const returnToMenu = () => this.scene.start("MenuScene");
+
+    this.createButton(480, 335, "HRÁT ZNOVU", 0x22d3ee, 0x083344, restartGame);
+    this.createButton(480, 415, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
+
+    this.add.text(480, 490, "Enter / R: hrát znovu  ·  Esc / M: úvodní menu", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      color: "#bae6fd",
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once("keydown-ENTER", restartGame);
+    this.input.keyboard.once("keydown-R", restartGame);
+    this.input.keyboard.once("keydown-ESC", returnToMenu);
+    this.input.keyboard.once("keydown-M", returnToMenu);
+  }
+
+  createButton(x, y, label, backgroundColor, textColor, onClick) {
+    const button = this.add.rectangle(x, y, 300, 58, backgroundColor)
+      .setStrokeStyle(3, 0xe0f2fe)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add.text(x, y, label, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "22px",
+      fontStyle: "bold",
+      color: textColor,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    button.on("pointerover", () => button.setScale(1.04));
+    button.on("pointerout", () => button.setScale(1));
+    button.on("pointerdown", onClick);
+    text.on("pointerdown", onClick);
+  }
+}
+
 class PauseScene extends Phaser.Scene {
   constructor() {
     super("PauseScene");
@@ -682,6 +756,12 @@ class MainScene extends Phaser.Scene {
     coin.disableBody(true, true);
     this.score += 1;
     this.scoreText.setText(`Mince: ${this.score}`);
+
+    if (this.coins.countActive(true) === 0) {
+      this.gameOver = true;
+      this.player.setVelocity(0, 0);
+      this.scene.start("VictoryScene", { score: this.score });
+    }
   }
 
   createHealthPickups() {
@@ -1028,8 +1108,36 @@ class MainScene extends Phaser.Scene {
         enemy.setData("nextActionAt", time + 1700);
       }
 
+      this.animateEnemy(enemy, type, time);
       enemy.getData("healthText").setPosition(enemy.x, enemy.y - 34);
     });
+  }
+
+  animateEnemy(enemy, type, time) {
+    const phase = time * 0.012 + enemy.x * 0.01;
+
+    if (type === "patrol") {
+      const step = Math.sin(phase);
+      enemy.setScale(1 + step * 0.04, 1 - step * 0.05);
+      enemy.setAngle(step * 2);
+      return;
+    }
+
+    if (type === "hopper") {
+      if (!enemy.body.blocked.down) {
+        enemy.setScale(0.88, 1.14);
+        enemy.setAngle(enemy.body.velocity.x * 0.015);
+      } else {
+        const bounce = Math.sin(phase) * 0.04;
+        enemy.setScale(1.08 - bounce, 0.92 + bounce);
+        enemy.setAngle(0);
+      }
+      return;
+    }
+
+    const pulse = Math.sin(time * 0.006 + enemy.x * 0.02);
+    enemy.setScale(1 + pulse * 0.025, 1 - pulse * 0.025);
+    enemy.setAngle(pulse * 1.5);
   }
 
   fireEnemyBullet(enemy, direction) {
@@ -1187,5 +1295,5 @@ new Phaser.Game({
       debug: false,
     },
   },
-  scene: [MenuScene, MainScene, PauseScene, GameOverScene],
+  scene: [MenuScene, MainScene, PauseScene, GameOverScene, VictoryScene],
 });
