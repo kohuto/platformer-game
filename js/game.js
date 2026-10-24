@@ -9,6 +9,9 @@ const BULLET_SPEED = 560;
 const SHOOT_COOLDOWN = 220;
 const ENEMY_SPEED = 70;
 const ENEMY_BULLET_SPEED = 180;
+const DASH_SPEED = 620;
+const DASH_DURATION = 150;
+const DASH_COOLDOWN = 950;
 
 function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
   const context = scene.sound?.context;
@@ -27,6 +30,12 @@ function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
   gain.connect(context.destination);
   oscillator.start();
   oscillator.stop(context.currentTime + duration);
+}
+
+function formatDuration(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 class MenuScene extends Phaser.Scene {
@@ -77,7 +86,7 @@ class MenuScene extends Phaser.Scene {
       color: "#e2e8f0",
     }).setOrigin(0.5);
 
-    this.add.text(480, 380, "Střelba:  X", {
+    this.add.text(480, 380, "Střelba:  X   ·   Dash: Shift", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "19px",
       color: "#e2e8f0",
@@ -117,6 +126,8 @@ class GameOverScene extends Phaser.Scene {
 
   init(data) {
     this.finalScore = data.score ?? 0;
+    this.finalKills = data.kills ?? 0;
+    this.finalTime = data.time ?? 0;
   }
 
   create() {
@@ -135,6 +146,12 @@ class GameOverScene extends Phaser.Scene {
       fontFamily: "system-ui, sans-serif",
       fontSize: "24px",
       color: "#fef3c7",
+    }).setOrigin(0.5);
+
+    this.add.text(480, 242, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "19px",
+      color: "#fed7aa",
     }).setOrigin(0.5);
 
     const restartGame = () => this.scene.start("MainScene");
@@ -180,6 +197,8 @@ class VictoryScene extends Phaser.Scene {
 
   init(data) {
     this.finalScore = data.score ?? 0;
+    this.finalKills = data.kills ?? 0;
+    this.finalTime = data.time ?? 0;
   }
 
   create() {
@@ -198,7 +217,7 @@ class VictoryScene extends Phaser.Scene {
       strokeThickness: 5,
     }).setOrigin(0.5);
 
-    this.add.text(480, 210, "Posbíral/a jsi všechny mince v levelu.", {
+    this.add.text(480, 210, "Posbíral/a jsi všechny mince a porazil/a bosse.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "22px",
       color: "#e0f2fe",
@@ -211,13 +230,19 @@ class VictoryScene extends Phaser.Scene {
       color: "#fde68a",
     }).setOrigin(0.5);
 
+    this.add.text(480, 282, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "18px",
+      color: "#bae6fd",
+    }).setOrigin(0.5);
+
     const restartGame = () => this.scene.start("MainScene");
     const returnToMenu = () => this.scene.start("MenuScene");
 
-    this.createButton(480, 335, "HRÁT ZNOVU", 0x22d3ee, 0x083344, restartGame);
-    this.createButton(480, 415, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
+    this.createButton(480, 355, "HRÁT ZNOVU", 0x22d3ee, 0x083344, restartGame);
+    this.createButton(480, 430, "ÚVODNÍ MENU", 0x334155, 0xf8fafc, returnToMenu);
 
-    this.add.text(480, 490, "Enter / R: hrát znovu  ·  Esc / M: úvodní menu", {
+    this.add.text(480, 505, "Enter / R: hrát znovu  ·  Esc / M: úvodní menu", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "16px",
       color: "#bae6fd",
@@ -682,11 +707,38 @@ class MainScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setScrollFactor(0);
 
+    this.timeText = this.add.text(445, 20, "Čas: 0:00", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "20px",
+      fontStyle: "bold",
+      color: "#e0f2fe",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setScrollFactor(0);
+
     this.ammoText = this.add.text(22, 48, `Náboje: ${MAX_AMMO} / ${MAX_AMMO}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "18px",
       fontStyle: "bold",
       color: "#fef3c7",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setScrollFactor(0);
+
+    this.killText = this.add.text(800, 48, "Eliminace: 0", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "17px",
+      fontStyle: "bold",
+      color: "#fda4af",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setScrollFactor(0);
+
+    this.dashText = this.add.text(500, 48, "Dash: připraven", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "17px",
+      fontStyle: "bold",
+      color: "#a5f3fc",
       stroke: "#020617",
       strokeThickness: 4,
     }).setScrollFactor(0);
@@ -713,6 +765,11 @@ class MainScene extends Phaser.Scene {
     this.walkCycle = 0;
     this.jumpsRemaining = 2;
     this.lives = MAX_LIVES;
+    this.kills = 0;
+    this.startedAt = this.time.now;
+    this.isDashing = false;
+    this.dashEndsAt = 0;
+    this.nextDashAt = 0;
     this.respawnPoint = { x: 100, y: 300 };
     this.isHurt = false;
     this.gameOver = false;
@@ -877,7 +934,7 @@ class MainScene extends Phaser.Scene {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
       playTone(this, 880, 0.28, "sine", 0.06);
-      this.scene.start("VictoryScene", { score: this.score });
+      this.scene.start("VictoryScene", this.getRunStats());
     }
   }
 
@@ -980,6 +1037,30 @@ class MainScene extends Phaser.Scene {
 
   updateAmmoText() {
     this.ammoText.setText(`Náboje: ${this.ammo} / ${MAX_AMMO}`);
+  }
+
+  getRunStats() {
+    return {
+      score: this.score,
+      kills: this.kills,
+      time: Math.floor((this.time.now - this.startedAt) / 1000),
+    };
+  }
+
+  updateRunHud(time) {
+    const elapsedSeconds = Math.floor((time - this.startedAt) / 1000);
+    this.timeText.setText(`Čas: ${formatDuration(elapsedSeconds)}`);
+    this.killText.setText(`Eliminace: ${this.kills}`);
+
+    const remaining = Math.max(0, this.nextDashAt - time);
+    if (remaining === 0) {
+      this.dashText.setText("Dash: připraven");
+      this.dashText.setColor("#a5f3fc");
+      return;
+    }
+
+    this.dashText.setText(`Dash: ${(remaining / 1000).toFixed(1)} s`);
+    this.dashText.setColor("#94a3b8");
   }
 
   createHazards() {
@@ -1242,6 +1323,22 @@ class MainScene extends Phaser.Scene {
       stroke: "#020617",
       strokeThickness: 4,
     }).setOrigin(0.5).setDepth(4);
+    this.bossBarBackground = this.add.rectangle(480, 82, 260, 16, 0x0f172a, 0.9)
+      .setStrokeStyle(2, 0xf0abfc)
+      .setScrollFactor(0)
+      .setDepth(8)
+      .setVisible(false);
+    this.bossBarFill = this.add.rectangle(352, 82, 256, 10, 0xc026d3)
+      .setOrigin(0, 0.5)
+      .setScrollFactor(0)
+      .setDepth(9)
+      .setVisible(false);
+    this.bossBarLabel = this.add.text(480, 82, "BOSS", {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "13px",
+      fontStyle: "bold",
+      color: "#fdf4ff",
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10).setVisible(false);
 
     this.physics.add.overlap(this.player, this.boss, this.hitEnemy, null, this);
     this.physics.add.overlap(this.bullets, this.boss, this.damageBoss, null, this);
@@ -1251,6 +1348,11 @@ class MainScene extends Phaser.Scene {
     if (!this.boss?.active) {
       return;
     }
+
+    const isBossInView = Math.abs(this.player.x - this.boss.x) < GAME_WIDTH * 0.7;
+    this.bossBarBackground.setVisible(isBossInView);
+    this.bossBarFill.setVisible(isBossInView);
+    this.bossBarLabel.setVisible(isBossInView);
 
     if (this.boss.x <= 5665) {
       this.boss.setVelocityX(55);
@@ -1286,13 +1388,18 @@ class MainScene extends Phaser.Scene {
     if (this.bossLives === 0) {
       boss.disableBody(true, true);
       this.bossHealthText.destroy();
+      this.bossBarBackground.destroy();
+      this.bossBarFill.destroy();
+      this.bossBarLabel.destroy();
       this.bossDefeated = true;
+      this.kills += 1;
       playTone(this, 120, 0.45, "sawtooth", 0.08);
       this.checkVictory();
       return;
     }
 
     this.bossHealthText.setText(`BOSS: ${this.bossLives}`);
+    this.bossBarFill.displayWidth = 256 * (this.bossLives / 12);
     boss.setTint(0xfef08a);
     this.time.delayedCall(120, () => {
       if (boss.active) {
@@ -1436,6 +1543,7 @@ class MainScene extends Phaser.Scene {
     if (remainingLives === 0) {
       enemy.disableBody(true, true);
       enemy.getData("healthText").destroy();
+      this.kills += 1;
       playTone(this, 130, 0.24, "sawtooth", 0.05);
       return;
     }
@@ -1465,7 +1573,7 @@ class MainScene extends Phaser.Scene {
     if (this.lives === 0) {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
-      this.scene.start("GameOverScene", { score: this.score });
+      this.scene.start("GameOverScene", this.getRunStats());
       return;
     }
 
@@ -1489,6 +1597,21 @@ class MainScene extends Phaser.Scene {
     this.jumpKeys = [this.cursors.up, this.wasd.W, this.cursors.space];
     this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.dashKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+  }
+
+  tryDash(time, direction) {
+    if (time < this.nextDashAt || this.isDashing) {
+      return;
+    }
+
+    this.isDashing = true;
+    this.dashDirection = direction;
+    this.dashEndsAt = time + DASH_DURATION;
+    this.nextDashAt = time + DASH_COOLDOWN;
+    this.player.setVelocityX(direction * DASH_SPEED);
+    this.player.setTint(0x67e8f9);
+    playTone(this, 390, 0.1, "sawtooth", 0.035);
   }
 
   pauseGame() {
@@ -1505,6 +1628,7 @@ class MainScene extends Phaser.Scene {
     this.updateMovingPlatforms(time);
     this.updateEnemies(time);
     this.updateBoss(time);
+    this.updateRunHud(time);
 
     if (this.gameOver || this.isHurt) {
       return;
@@ -1514,7 +1638,22 @@ class MainScene extends Phaser.Scene {
     const movingRight = this.cursors.right.isDown || this.wasd.D.isDown;
     const jumpPressed = this.jumpKeys.some((key) => Phaser.Input.Keyboard.JustDown(key));
 
-    if (movingLeft) {
+    const facingDirection = this.player.flipX ? -1 : 1;
+
+    if (Phaser.Input.Keyboard.JustDown(this.dashKey)) {
+      this.tryDash(time, movingLeft ? -1 : movingRight ? 1 : facingDirection);
+    }
+
+    if (this.isDashing && time < this.dashEndsAt) {
+      this.player.setVelocityX(this.dashDirection * DASH_SPEED);
+    } else if (this.isDashing) {
+      this.isDashing = false;
+      this.player.clearTint();
+    }
+
+    if (this.isDashing) {
+      // Dash ponechává nastavenou rychlost po celou dobu trvání.
+    } else if (movingLeft) {
       this.player.setVelocityX(-PLAYER_SPEED);
       this.player.setFlipX(true);
     } else if (movingRight) {
