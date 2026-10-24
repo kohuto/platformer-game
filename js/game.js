@@ -1,6 +1,7 @@
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
 const LEVEL_WIDTH = 1920;
+const MAX_LIVES = 3;
 const PLAYER_SPEED = 260;
 const JUMP_VELOCITY = -520;
 const BULLET_SPEED = 560;
@@ -229,6 +230,7 @@ class MainScene extends Phaser.Scene {
     this.createCamera();
     this.createProjectiles();
     this.createCollectibles();
+    this.createHealthPickups();
     this.createHazards();
     this.createEnemy();
     this.createControls();
@@ -265,6 +267,17 @@ class MainScene extends Phaser.Scene {
     graphics.fillStyle(0xffffff, 0.75);
     graphics.fillCircle(8, 8, 3);
     graphics.generateTexture("coin", 24, 24);
+    graphics.clear();
+
+    graphics.fillStyle(0xef4444);
+    graphics.fillCircle(9, 8, 7);
+    graphics.fillCircle(19, 8, 7);
+    graphics.fillTriangle(3, 10, 25, 10, 14, 24);
+    graphics.lineStyle(2, 0x991b1b);
+    graphics.strokeCircle(9, 8, 7);
+    graphics.strokeCircle(19, 8, 7);
+    graphics.strokeTriangle(3, 10, 25, 10, 14, 24);
+    graphics.generateTexture("health", 28, 26);
     graphics.clear();
 
     graphics.fillStyle(0x94a3b8);
@@ -340,7 +353,7 @@ class MainScene extends Phaser.Scene {
       color: "#0f172a",
     }).setScrollFactor(0);
 
-    this.livesText = this.add.text(650, 20, "Životy: 3", {
+    this.livesText = this.add.text(650, 20, `Životy: ${MAX_LIVES} / ${MAX_LIVES}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
@@ -371,7 +384,7 @@ class MainScene extends Phaser.Scene {
     this.weapon = this.add.image(this.player.x + 24, this.player.y + 4, "weapon")
       .setDepth(2);
     this.walkCycle = 0;
-    this.lives = 3;
+    this.lives = MAX_LIVES;
     this.isHurt = false;
     this.gameOver = false;
     this.updatePlayerLimbs(0, false);
@@ -454,6 +467,33 @@ class MainScene extends Phaser.Scene {
     coin.disableBody(true, true);
     this.score += 1;
     this.scoreText.setText(`Mince: ${this.score}`);
+  }
+
+  createHealthPickups() {
+    this.healthPickups = this.physics.add.staticGroup();
+
+    [
+      [560, 478],
+      [700, 210],
+      [1350, 290],
+      [1800, 350],
+    ].forEach(([x, y]) => this.healthPickups.create(x, y, "health"));
+
+    this.physics.add.overlap(this.player, this.healthPickups, this.collectHealth, null, this);
+  }
+
+  collectHealth(_player, healthPickup) {
+    if (this.lives >= MAX_LIVES) {
+      return;
+    }
+
+    healthPickup.disableBody(true, true);
+    this.lives = Math.min(this.lives + 1, MAX_LIVES);
+    this.updateLivesText();
+  }
+
+  updateLivesText() {
+    this.livesText.setText(`Životy: ${this.lives} / ${MAX_LIVES}`);
   }
 
   createProjectiles() {
@@ -575,7 +615,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.lives -= 1;
-    this.livesText.setText(`Životy: ${this.lives}`);
+    this.updateLivesText();
 
     if (this.lives === 0) {
       this.gameOver = true;
