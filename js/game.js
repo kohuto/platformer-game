@@ -10,6 +10,25 @@ const SHOOT_COOLDOWN = 220;
 const ENEMY_SPEED = 70;
 const ENEMY_BULLET_SPEED = 180;
 
+function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
+  const context = scene.sound?.context;
+
+  if (!context || context.state === "suspended") {
+    return;
+  }
+
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+  gain.gain.setValueAtTime(volume, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + duration);
+}
+
 class MenuScene extends Phaser.Scene {
   constructor() {
     super("MenuScene");
@@ -302,6 +321,7 @@ class MainScene extends Phaser.Scene {
     this.createWorld();
     this.createPlayer();
     this.createCamera();
+    this.createMovingPlatforms();
     this.createProjectiles();
     this.createCollectibles();
     this.createHealthPickups();
@@ -310,6 +330,7 @@ class MainScene extends Phaser.Scene {
     this.createBarriers();
     this.createCheckpoints();
     this.createEnemies();
+    this.createBoss();
     this.createControls();
   }
 
@@ -472,6 +493,26 @@ class MainScene extends Phaser.Scene {
     graphics.fillStyle(0xfef3c7);
     graphics.fillCircle(10, 3, 2);
     graphics.generateTexture("enemyBullet", 14, 8);
+    graphics.clear();
+
+    graphics.fillStyle(0x2e1065);
+    graphics.fillRoundedRect(2, 8, 70, 76, 18);
+    graphics.fillStyle(0x7e22ce);
+    graphics.fillRoundedRect(5, 4, 62, 68, 16);
+    graphics.fillStyle(0x581c87);
+    graphics.fillRect(10, 43, 52, 24);
+    graphics.fillStyle(0xc4b5fd);
+    graphics.fillRoundedRect(13, 15, 46, 22, 8);
+    graphics.fillStyle(0xfef08a);
+    graphics.fillCircle(25, 26, 5);
+    graphics.fillCircle(47, 26, 5);
+    graphics.fillStyle(0x1e1b4b);
+    graphics.fillCircle(25, 26, 2);
+    graphics.fillCircle(47, 26, 2);
+    graphics.fillStyle(0xf0abfc);
+    graphics.fillRect(8, 20, 5, 35);
+    graphics.fillRect(59, 20, 5, 35);
+    graphics.generateTexture("boss", 74, 86);
     graphics.clear();
 
     graphics.fillStyle(0x0f172a);
@@ -731,6 +772,45 @@ class MainScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(240, GAME_HEIGHT);
   }
 
+  createMovingPlatforms() {
+    this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
+
+    [
+      { x: 920, y: 285, width: 128, amplitude: 105, speed: 0.0012, axis: "x" },
+      { x: 1930, y: 335, width: 128, amplitude: 75, speed: 0.001, axis: "y" },
+      { x: 3650, y: 310, width: 128, amplitude: 120, speed: 0.0011, axis: "x" },
+      { x: 4550, y: 355, width: 128, amplitude: 90, speed: 0.0013, axis: "y" },
+      { x: 5350, y: 300, width: 128, amplitude: 115, speed: 0.001, axis: "x" },
+    ].forEach((config) => this.addMovingPlatform(config));
+
+    this.physics.add.collider(this.player, this.movingPlatforms);
+  }
+
+  addMovingPlatform(config) {
+    const platform = this.movingPlatforms.create(config.x, config.y, "platform");
+    platform.setDisplaySize(config.width, 32);
+    platform.setTint(0xa5f3fc);
+    platform.setDepth(0.1);
+    platform.body.setAllowGravity(false);
+    platform.body.setImmovable(true);
+    platform.setData({ ...config, startX: config.x, startY: config.y });
+  }
+
+  updateMovingPlatforms(time) {
+    this.movingPlatforms.getChildren().forEach((platform) => {
+      const offset = Math.sin(time * platform.getData("speed")) * platform.getData("amplitude");
+      const x = platform.getData("axis") === "x"
+        ? platform.getData("startX") + offset
+        : platform.getData("startX");
+      const y = platform.getData("axis") === "y"
+        ? platform.getData("startY") + offset
+        : platform.getData("startY");
+
+      platform.setPosition(x, y);
+      platform.body.updateFromGameObject();
+    });
+  }
+
   createCollectibles() {
     this.score = 0;
     this.coins = this.physics.add.staticGroup();
@@ -787,10 +867,16 @@ class MainScene extends Phaser.Scene {
     coin.disableBody(true, true);
     this.score += 1;
     this.scoreText.setText(`Mince: ${this.score}`);
+    playTone(this, 740, 0.09, "triangle", 0.035);
 
-    if (this.coins.countActive(true) === 0) {
+    this.checkVictory();
+  }
+
+  checkVictory() {
+    if (this.coins.countActive(true) === 0 && this.bossDefeated) {
       this.gameOver = true;
       this.player.setVelocity(0, 0);
+      playTone(this, 880, 0.28, "sine", 0.06);
       this.scene.start("VictoryScene", { score: this.score });
     }
   }
@@ -821,6 +907,7 @@ class MainScene extends Phaser.Scene {
     healthPickup.disableBody(true, true);
     this.lives = Math.min(this.lives + 1, MAX_LIVES);
     this.updateLivesText();
+    playTone(this, 520, 0.16, "sine", 0.05);
   }
 
   updateLivesText() {
@@ -852,6 +939,7 @@ class MainScene extends Phaser.Scene {
     bullet.setVelocityX(direction * BULLET_SPEED);
     this.ammo -= 1;
     this.updateAmmoText();
+    playTone(this, 260, 0.06, "square", 0.03);
     this.lastShotAt = time;
 
     this.time.delayedCall(1200, () => {
@@ -887,6 +975,7 @@ class MainScene extends Phaser.Scene {
     ammoPickup.disableBody(true, true);
     this.ammo = MAX_AMMO;
     this.updateAmmoText();
+    playTone(this, 430, 0.14, "triangle", 0.05);
   }
 
   updateAmmoText() {
@@ -966,10 +1055,12 @@ class MainScene extends Phaser.Scene {
     if (remainingLives === 0) {
       barrier.disableBody(true, true);
       barrier.getData("healthText").destroy();
+      playTone(this, 110, 0.35, "sawtooth", 0.07);
       return;
     }
 
     barrier.getData("healthText").setText(`Štít: ${remainingLives}`);
+    playTone(this, 210, 0.08, "square", 0.04);
     barrier.setTint(0xfef08a);
     this.time.delayedCall(120, () => {
       if (barrier.active) {
@@ -1011,6 +1102,7 @@ class MainScene extends Phaser.Scene {
     checkpoint.setData("active", true);
     checkpoint.setTint(0x86efac);
     checkpoint.setAlpha(1);
+    playTone(this, 660, 0.2, "sine", 0.05);
     this.respawnPoint = {
       x: checkpoint.getData("respawnX"),
       y: checkpoint.getData("respawnY"),
@@ -1131,6 +1223,82 @@ class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.bullets, this.enemies, this.damageEnemy, null, this);
     this.physics.add.overlap(this.player, this.enemyBullets, this.hitEnemyBullet, null, this);
     this.physics.add.collider(this.enemyBullets, this.platforms, (bullet) => bullet.destroy());
+    this.physics.add.collider(this.enemyBullets, this.barriers, (bullet) => bullet.destroy());
+  }
+
+  createBoss() {
+    this.bossLives = 12;
+    this.bossDefeated = false;
+    this.bossNextShotAt = 1600;
+    this.boss = this.physics.add.sprite(5700, 458, "boss");
+    this.boss.setDepth(2);
+    this.boss.setVelocityX(-55);
+    this.physics.add.collider(this.boss, this.platforms);
+    this.bossHealthText = this.add.text(5700, 360, `BOSS: ${this.bossLives}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "20px",
+      fontStyle: "bold",
+      color: "#f0abfc",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(4);
+
+    this.physics.add.overlap(this.player, this.boss, this.hitEnemy, null, this);
+    this.physics.add.overlap(this.bullets, this.boss, this.damageBoss, null, this);
+  }
+
+  updateBoss(time) {
+    if (!this.boss?.active) {
+      return;
+    }
+
+    if (this.boss.x <= 5665) {
+      this.boss.setVelocityX(55);
+      this.boss.setFlipX(false);
+    } else if (this.boss.x >= 5715) {
+      this.boss.setVelocityX(-55);
+      this.boss.setFlipX(true);
+    }
+
+    if (time >= this.bossNextShotAt) {
+      const direction = this.player.x < this.boss.x ? -1 : 1;
+      this.fireEnemyBullet(this.boss, direction);
+      this.bossNextShotAt = time + 1050;
+    }
+
+    const pulse = Math.sin(time * 0.008) * 0.04;
+    this.boss.setScale(1 + pulse, 1 - pulse);
+    this.bossHealthText.setPosition(this.boss.x, this.boss.y - 58);
+  }
+
+  damageBoss(firstObject, secondObject) {
+    const boss = firstObject === this.boss ? firstObject : secondObject;
+    const bullet = boss === firstObject ? secondObject : firstObject;
+
+    if (!boss.active || !bullet.active) {
+      return;
+    }
+
+    bullet.destroy();
+    this.bossLives -= 1;
+    playTone(this, 180, 0.12, "sawtooth", 0.05);
+
+    if (this.bossLives === 0) {
+      boss.disableBody(true, true);
+      this.bossHealthText.destroy();
+      this.bossDefeated = true;
+      playTone(this, 120, 0.45, "sawtooth", 0.08);
+      this.checkVictory();
+      return;
+    }
+
+    this.bossHealthText.setText(`BOSS: ${this.bossLives}`);
+    boss.setTint(0xfef08a);
+    this.time.delayedCall(120, () => {
+      if (boss.active) {
+        boss.clearTint();
+      }
+    });
   }
 
   createEnemy(config) {
@@ -1268,6 +1436,7 @@ class MainScene extends Phaser.Scene {
     if (remainingLives === 0) {
       enemy.disableBody(true, true);
       enemy.getData("healthText").destroy();
+      playTone(this, 130, 0.24, "sawtooth", 0.05);
       return;
     }
 
@@ -1291,6 +1460,7 @@ class MainScene extends Phaser.Scene {
 
     this.lives -= 1;
     this.updateLivesText();
+    playTone(this, 150, 0.18, "sawtooth", 0.06);
 
     if (this.lives === 0) {
       this.gameOver = true;
@@ -1332,7 +1502,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
+    this.updateMovingPlatforms(time);
     this.updateEnemies(time);
+    this.updateBoss(time);
 
     if (this.gameOver || this.isHurt) {
       return;
