@@ -1,7 +1,8 @@
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
-const LEVEL_WIDTH = 1920;
+const LEVEL_WIDTH = 2880;
 const MAX_LIVES = 3;
+const MAX_AMMO = 10;
 const PLAYER_SPEED = 260;
 const JUMP_VELOCITY = -520;
 const BULLET_SPEED = 560;
@@ -230,7 +231,9 @@ class MainScene extends Phaser.Scene {
     this.createProjectiles();
     this.createCollectibles();
     this.createHealthPickups();
+    this.createAmmoPickups();
     this.createHazards();
+    this.createCheckpoints();
     this.createEnemies();
     this.createControls();
   }
@@ -295,6 +298,17 @@ class MainScene extends Phaser.Scene {
     graphics.generateTexture("bullet", 18, 8);
     graphics.clear();
 
+    graphics.fillStyle(0xfacc15);
+    graphics.fillRect(4, 7, 12, 22);
+    graphics.fillStyle(0xf97316);
+    graphics.fillRoundedRect(4, 0, 12, 10, 5);
+    graphics.fillStyle(0x92400e);
+    graphics.fillRect(4, 25, 12, 4);
+    graphics.lineStyle(2, 0x78350f);
+    graphics.strokeRect(4, 7, 12, 22);
+    graphics.generateTexture("ammoPickup", 20, 30);
+    graphics.clear();
+
     graphics.fillStyle(0xef4444);
     graphics.fillRoundedRect(0, 0, 36, 42, 8);
     graphics.fillStyle(0x7f1d1d);
@@ -342,6 +356,17 @@ class MainScene extends Phaser.Scene {
     graphics.clear();
 
     graphics.fillStyle(0x334155);
+    graphics.fillRect(2, 0, 5, 52);
+    graphics.fillStyle(0x2563eb);
+    graphics.fillTriangle(7, 4, 30, 12, 7, 25);
+    graphics.lineStyle(2, 0x1e3a8a);
+    graphics.strokeTriangle(7, 4, 30, 12, 7, 25);
+    graphics.fillStyle(0xf8fafc);
+    graphics.fillCircle(4.5, 2, 4);
+    graphics.generateTexture("checkpoint", 32, 52);
+    graphics.clear();
+
+    graphics.fillStyle(0x334155);
     graphics.fillRoundedRect(0, 2, 29, 9, 3);
     graphics.fillStyle(0x94a3b8);
     graphics.fillRect(18, 4, 12, 4);
@@ -358,7 +383,7 @@ class MainScene extends Phaser.Scene {
 
     const clouds = this.add.graphics();
     clouds.fillStyle(0xffffff, 0.7);
-    [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145]].forEach(([x, y]) => {
+    [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145], [2050, 92], [2380, 140], [2680, 76]].forEach(([x, y]) => {
       clouds.fillCircle(x, y, 22);
       clouds.fillCircle(x + 27, y - 10, 30);
       clouds.fillCircle(x + 57, y, 20);
@@ -375,6 +400,11 @@ class MainScene extends Phaser.Scene {
     this.addPlatform(1350, 325, 2);
     this.addPlatform(1590, 250, 2);
     this.addPlatform(1800, 385, 1);
+    this.addPlatform(2400, 520, 8);
+    this.addPlatform(2100, 400, 2);
+    this.addPlatform(2350, 320, 2);
+    this.addPlatform(2620, 245, 2);
+    this.addPlatform(2800, 385, 1);
 
     this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
 
@@ -404,6 +434,13 @@ class MainScene extends Phaser.Scene {
       fontStyle: "bold",
       color: "#0f172a",
     }).setScrollFactor(0);
+
+    this.ammoText = this.add.text(22, 48, `Náboje: ${MAX_AMMO} / ${MAX_AMMO}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#0f172a",
+    }).setScrollFactor(0);
   }
 
   addPlatform(x, y, widthInTiles) {
@@ -424,6 +461,7 @@ class MainScene extends Phaser.Scene {
     this.walkCycle = 0;
     this.jumpsRemaining = 2;
     this.lives = MAX_LIVES;
+    this.respawnPoint = { x: 100, y: 300 };
     this.isHurt = false;
     this.gameOver = false;
     this.updatePlayerLimbs(0, false);
@@ -498,6 +536,13 @@ class MainScene extends Phaser.Scene {
       [1550, 215],
       [1625, 215],
       [1800, 350],
+      [2050, 365],
+      [2140, 365],
+      [2310, 285],
+      [2390, 285],
+      [2580, 210],
+      [2650, 210],
+      [2800, 350],
     ].forEach(([x, y]) => this.coins.create(x, y, "coin"));
 
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
@@ -517,6 +562,8 @@ class MainScene extends Phaser.Scene {
       [700, 210],
       [1350, 290],
       [1800, 350],
+      [2350, 285],
+      [2800, 350],
     ].forEach(([x, y]) => this.healthPickups.create(x, y, "health"));
 
     this.physics.add.overlap(this.player, this.healthPickups, this.collectHealth, null, this);
@@ -541,10 +588,12 @@ class MainScene extends Phaser.Scene {
   createProjectiles() {
     this.lastShotAt = -SHOOT_COOLDOWN;
     this.bullets = this.physics.add.group();
+    this.ammo = MAX_AMMO;
+    this.updateAmmoText();
   }
 
   shoot(time) {
-    if (time - this.lastShotAt < SHOOT_COOLDOWN) {
+    if (time - this.lastShotAt < SHOOT_COOLDOWN || this.ammo === 0) {
       return;
     }
 
@@ -557,6 +606,8 @@ class MainScene extends Phaser.Scene {
 
     bullet.body.allowGravity = false;
     bullet.setVelocityX(direction * BULLET_SPEED);
+    this.ammo -= 1;
+    this.updateAmmoText();
     this.lastShotAt = time;
 
     this.time.delayedCall(1200, () => {
@@ -564,6 +615,34 @@ class MainScene extends Phaser.Scene {
         bullet.destroy();
       }
     });
+  }
+
+  createAmmoPickups() {
+    this.ammoPickups = this.physics.add.staticGroup();
+
+    [
+      [855, 350],
+      [1590, 210],
+      [2380, 285],
+      [2630, 210],
+      [2800, 350],
+    ].forEach(([x, y]) => this.ammoPickups.create(x, y, "ammoPickup"));
+
+    this.physics.add.overlap(this.player, this.ammoPickups, this.collectAmmo, null, this);
+  }
+
+  collectAmmo(_player, ammoPickup) {
+    if (this.ammo >= MAX_AMMO) {
+      return;
+    }
+
+    ammoPickup.disableBody(true, true);
+    this.ammo = MAX_AMMO;
+    this.updateAmmoText();
+  }
+
+  updateAmmoText() {
+    this.ammoText.setText(`Náboje: ${this.ammo} / ${MAX_AMMO}`);
   }
 
   createHazards() {
@@ -577,9 +656,49 @@ class MainScene extends Phaser.Scene {
       [1072, 488],
       [1450, 488],
       [1590, 222],
+      [2020, 488],
+      [2052, 488],
+      [2500, 488],
+      [2620, 217],
     ].forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
+  }
+
+  createCheckpoints() {
+    this.checkpoints = this.physics.add.staticGroup();
+
+    this.addCheckpoint(1110, 350, 1110, 360);
+    this.addCheckpoint(2150, 455, 2150, 470);
+
+    this.physics.add.overlap(this.player, this.checkpoints, this.activateCheckpoint, null, this);
+  }
+
+  addCheckpoint(x, y, respawnX, respawnY) {
+    const checkpoint = this.checkpoints.create(x, y, "checkpoint");
+    checkpoint.setDepth(0.4);
+    checkpoint.setAlpha(0.65);
+    checkpoint.setData({ respawnX, respawnY, active: false });
+  }
+
+  activateCheckpoint(_player, checkpoint) {
+    if (checkpoint.getData("active")) {
+      return;
+    }
+
+    this.checkpoints.getChildren().forEach((item) => {
+      item.setData("active", false);
+      item.clearTint();
+      item.setAlpha(0.65);
+    });
+
+    checkpoint.setData("active", true);
+    checkpoint.setTint(0x86efac);
+    checkpoint.setAlpha(1);
+    this.respawnPoint = {
+      x: checkpoint.getData("respawnX"),
+      y: checkpoint.getData("respawnY"),
+    };
   }
 
   createEnemies() {
@@ -760,7 +879,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.isHurt = true;
-    this.player.setPosition(100, 300);
+    this.player.setPosition(this.respawnPoint.x, this.respawnPoint.y);
     this.player.setVelocity(0, 0);
     this.jumpsRemaining = 2;
     this.player.setTint(0xef4444);
