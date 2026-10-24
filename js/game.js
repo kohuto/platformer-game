@@ -13,11 +13,12 @@ const DASH_SPEED = 620;
 const DASH_DURATION = 150;
 const DASH_COOLDOWN = 950;
 const TIME_CHALLENGE_SECONDS = 300;
+const BOSS_LIVES = 5;
 const PROGRESS_STORAGE_KEY = "platformer-game-progress";
 const DIFFICULTIES = {
-  easy: { label: "LEHKÁ", startingLives: 3, hurtDelay: 1200, bossLives: 9 },
-  normal: { label: "NORMÁLNÍ", startingLives: 3, hurtDelay: 900, bossLives: 12 },
-  hard: { label: "TĚŽKÁ", startingLives: 2, hurtDelay: 650, bossLives: 15 },
+  easy: { label: "LEHKÁ", startingLives: 3, hurtDelay: 1200 },
+  normal: { label: "NORMÁLNÍ", startingLives: 3, hurtDelay: 900 },
+  hard: { label: "TĚŽKÁ", startingLives: 2, hurtDelay: 650 },
 };
 
 function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
@@ -1499,7 +1500,7 @@ class MainScene extends Phaser.Scene {
   }
 
   createBoss() {
-    this.bossLives = this.difficultySettings.bossLives + (this.sector === 2 ? 4 : 0);
+    this.bossLives = BOSS_LIVES;
     this.bossDefeated = false;
     this.bossNextShotAt = 1600;
     this.boss = this.physics.add.sprite(5700, 458, "boss");
@@ -1591,7 +1592,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.bossHealthText.setText(`BOSS: ${this.bossLives}`);
-    this.bossBarFill.displayWidth = 256 * (this.bossLives / (this.difficultySettings.bossLives + (this.sector === 2 ? 4 : 0)));
+    this.bossBarFill.displayWidth = 256 * (this.bossLives / BOSS_LIVES);
     boss.setTint(0xfef08a);
     this.time.delayedCall(120, () => {
       if (boss.active) {
