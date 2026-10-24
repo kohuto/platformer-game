@@ -1,5 +1,6 @@
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
+const LEVEL_WIDTH = 1920;
 const PLAYER_SPEED = 260;
 const JUMP_VELOCITY = -520;
 const BULLET_SPEED = 560;
@@ -161,6 +162,7 @@ class MainScene extends Phaser.Scene {
     this.createTextures();
     this.createWorld();
     this.createPlayer();
+    this.createCamera();
     this.createProjectiles();
     this.createCollectibles();
     this.createHazards();
@@ -236,7 +238,7 @@ class MainScene extends Phaser.Scene {
 
     const clouds = this.add.graphics();
     clouds.fillStyle(0xffffff, 0.7);
-    [[120, 88], [480, 145], [780, 78]].forEach(([x, y]) => {
+    [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145]].forEach(([x, y]) => {
       clouds.fillCircle(x, y, 22);
       clouds.fillCircle(x + 27, y - 10, 30);
       clouds.fillCircle(x + 57, y, 20);
@@ -248,27 +250,34 @@ class MainScene extends Phaser.Scene {
     this.addPlatform(420, 330, 2);
     this.addPlatform(690, 255, 2);
     this.addPlatform(855, 390, 1);
+    this.addPlatform(1440, 520, 8);
+    this.addPlatform(1110, 405, 2);
+    this.addPlatform(1350, 325, 2);
+    this.addPlatform(1590, 250, 2);
+    this.addPlatform(1800, 385, 1);
+
+    this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
 
     this.add.text(22, 20, "Základní herní scéna", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
       color: "#0f172a",
-    });
+    }).setScrollFactor(0);
 
     this.livesText = this.add.text(650, 20, "Životy: 3", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
       color: "#0f172a",
-    });
+    }).setScrollFactor(0);
 
     this.scoreText = this.add.text(810, 20, "Mince: 0", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
       color: "#0f172a",
-    });
+    }).setScrollFactor(0);
   }
 
   addPlatform(x, y, widthInTiles) {
@@ -287,6 +296,12 @@ class MainScene extends Phaser.Scene {
     this.gameOver = false;
   }
 
+  createCamera() {
+    this.cameras.main.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
+    this.cameras.main.startFollow(this.player, true, 0.1, 0);
+    this.cameras.main.setDeadzone(240, GAME_HEIGHT);
+  }
+
   createCollectibles() {
     this.score = 0;
     this.coins = this.physics.add.staticGroup();
@@ -299,6 +314,13 @@ class MainScene extends Phaser.Scene {
       [650, 220],
       [725, 220],
       [855, 355],
+      [1070, 370],
+      [1140, 370],
+      [1310, 290],
+      [1380, 290],
+      [1550, 215],
+      [1625, 215],
+      [1800, 350],
     ].forEach(([x, y]) => this.coins.create(x, y, "coin"));
 
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
@@ -345,6 +367,10 @@ class MainScene extends Phaser.Scene {
       [350, 488],
       [382, 488],
       [690, 227],
+      [1040, 488],
+      [1072, 488],
+      [1450, 488],
+      [1590, 222],
     ].forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
