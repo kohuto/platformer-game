@@ -294,6 +294,17 @@ class MainScene extends Phaser.Scene {
     graphics.fillCircle(11, 12, 1.5);
     graphics.fillCircle(25, 12, 1.5);
     graphics.generateTexture("enemy", 36, 42);
+    graphics.clear();
+
+    graphics.fillStyle(0x334155);
+    graphics.fillRoundedRect(0, 2, 29, 9, 3);
+    graphics.fillStyle(0x94a3b8);
+    graphics.fillRect(18, 4, 12, 4);
+    graphics.fillStyle(0x1e293b);
+    graphics.fillRect(8, 10, 7, 4);
+    graphics.fillStyle(0xfacc15);
+    graphics.fillCircle(25, 6, 2);
+    graphics.generateTexture("weapon", 30, 14);
     graphics.destroy();
   }
 
@@ -355,9 +366,17 @@ class MainScene extends Phaser.Scene {
     this.player.setBounce(0.05);
     this.player.setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.platforms);
+    this.weapon = this.add.image(this.player.x + 24, this.player.y + 4, "weapon")
+      .setDepth(1);
     this.lives = 3;
     this.isHurt = false;
     this.gameOver = false;
+  }
+
+  updateWeapon() {
+    const direction = this.player.flipX ? -1 : 1;
+    this.weapon.setPosition(this.player.x + direction * 24, this.player.y + 4);
+    this.weapon.setFlipX(this.player.flipX);
   }
 
   createCamera() {
@@ -408,8 +427,8 @@ class MainScene extends Phaser.Scene {
 
     const direction = this.player.flipX ? -1 : 1;
     const bullet = this.bullets.create(
-      this.player.x + direction * 24,
-      this.player.y - 4,
+      this.player.x + direction * 38,
+      this.player.y + 4,
       "bullet",
     );
 
@@ -528,6 +547,7 @@ class MainScene extends Phaser.Scene {
     this.player.setPosition(100, 300);
     this.player.setVelocity(0, 0);
     this.player.setTint(0xef4444);
+    this.updateWeapon();
 
     this.time.delayedCall(900, () => {
       this.isHurt = false;
@@ -580,6 +600,8 @@ class MainScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.shootKey)) {
       this.shoot(time);
     }
+
+    this.updateWeapon();
   }
 }
 
