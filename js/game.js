@@ -1,6 +1,6 @@
 const GAME_WIDTH = 960;
 const GAME_HEIGHT = 540;
-const LEVEL_WIDTH = 2880;
+const LEVEL_WIDTH = 5760;
 const MAX_LIVES = 3;
 const MAX_AMMO = 10;
 const PLAYER_SPEED = 260;
@@ -16,15 +16,15 @@ class MenuScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#1e3a5f");
-    this.add.circle(110, 90, 72, 0x60a5fa, 0.18);
-    this.add.circle(850, 460, 130, 0x4ade80, 0.12);
+    this.cameras.main.setBackgroundColor("#071126");
+    this.add.circle(110, 90, 72, 0x22d3ee, 0.2);
+    this.add.circle(850, 460, 130, 0xa78bfa, 0.16);
 
     this.add.text(480, 105, "SKOK DO DOBRODRUŽSTVÍ", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "18px",
       fontStyle: "bold",
-      color: "#93c5fd",
+      color: "#67e8f9",
       letterSpacing: 4,
     }).setOrigin(0.5);
 
@@ -32,11 +32,11 @@ class MenuScene extends Phaser.Scene {
       fontFamily: "system-ui, sans-serif",
       fontSize: "52px",
       fontStyle: "bold",
-      color: "#ffffff",
+      color: "#e0f2fe",
     }).setOrigin(0.5);
 
-    const controlsPanel = this.add.rectangle(480, 315, 500, 180, 0x0f172a, 0.55)
-      .setStrokeStyle(2, 0x475569);
+    const controlsPanel = this.add.rectangle(480, 315, 500, 180, 0x0f172a, 0.82)
+      .setStrokeStyle(2, 0x22d3ee);
     controlsPanel.setInteractive({ useHandCursor: false });
 
     this.add.text(480, 255, "OVLÁDÁNÍ", {
@@ -64,19 +64,19 @@ class MenuScene extends Phaser.Scene {
       color: "#e2e8f0",
     }).setOrigin(0.5);
 
-    const startButton = this.add.rectangle(480, 455, 280, 64, 0x22c55e)
-      .setStrokeStyle(3, 0x86efac)
+    const startButton = this.add.rectangle(480, 455, 280, 64, 0x22d3ee)
+      .setStrokeStyle(3, 0xa5f3fc)
       .setInteractive({ useHandCursor: true });
     const startLabel = this.add.text(480, 455, "ZAČÍT HRU", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "24px",
       fontStyle: "bold",
-      color: "#052e16",
+      color: "#082f49",
     }).setOrigin(0.5);
 
     const startGame = () => this.scene.start("MainScene");
-    startButton.on("pointerover", () => startButton.setFillStyle(0x4ade80));
-    startButton.on("pointerout", () => startButton.setFillStyle(0x22c55e));
+    startButton.on("pointerover", () => startButton.setFillStyle(0x67e8f9));
+    startButton.on("pointerout", () => startButton.setFillStyle(0x22d3ee));
     startButton.on("pointerdown", startGame);
     startLabel.setInteractive({ useHandCursor: true }).on("pointerdown", startGame);
 
@@ -101,9 +101,9 @@ class GameOverScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#2a1622");
-    this.add.circle(125, 445, 160, 0xef4444, 0.12);
-    this.add.circle(830, 90, 105, 0xfacc15, 0.1);
+    this.cameras.main.setBackgroundColor("#120b25");
+    this.add.circle(125, 445, 160, 0xfb7185, 0.16);
+    this.add.circle(830, 90, 105, 0xa78bfa, 0.14);
 
     this.add.text(480, 125, "Konec hry", {
       fontFamily: "system-ui, sans-serif",
@@ -245,87 +245,125 @@ class MainScene extends Phaser.Scene {
 
     const graphics = this.add.graphics();
 
-    graphics.fillStyle(0x4ade80);
+    graphics.fillStyle(0x0f172a);
     graphics.fillRect(0, 0, 128, 32);
-    graphics.fillStyle(0x22c55e);
-    graphics.fillRect(0, 0, 128, 7);
+    graphics.fillStyle(0x334155);
+    graphics.fillRect(4, 8, 120, 20);
+    graphics.fillStyle(0x1e293b);
+    graphics.fillRect(8, 13, 112, 15);
+    graphics.fillStyle(0x22d3ee);
+    graphics.fillRect(0, 0, 128, 8);
+    graphics.fillStyle(0xa5f3fc);
+    graphics.fillRect(4, 2, 120, 3);
+    graphics.fillStyle(0x164e63);
+    graphics.fillRect(0, 8, 4, 24);
+    graphics.fillStyle(0x020617);
+    graphics.fillRect(4, 28, 120, 4);
     graphics.generateTexture("platform", 128, 32);
     graphics.clear();
 
-    graphics.fillStyle(0xfbbf24);
-    graphics.fillRoundedRect(0, 0, 34, 46, 8);
-    graphics.fillStyle(0x1e3a8a);
-    graphics.fillRect(7, 18, 20, 19);
-    graphics.fillStyle(0xffffff);
-    graphics.fillCircle(11, 11, 4);
-    graphics.fillCircle(23, 11, 4);
+    graphics.fillStyle(0x020617);
+    graphics.fillEllipse(18, 44, 28, 6);
+    graphics.fillStyle(0x2563eb);
+    graphics.fillRoundedRect(3, 3, 28, 40, 8);
+    graphics.fillStyle(0x60a5fa);
+    graphics.fillRoundedRect(6, 6, 21, 14, 5);
+    graphics.fillStyle(0x0f172a);
+    graphics.fillRoundedRect(6, 22, 22, 16, 4);
+    graphics.fillStyle(0x38bdf8);
+    graphics.fillRect(8, 25, 18, 4);
+    graphics.fillStyle(0xe0f2fe);
+    graphics.fillCircle(11, 13, 3);
+    graphics.fillCircle(23, 13, 3);
+    graphics.fillStyle(0x0f172a);
+    graphics.fillCircle(11, 13, 1.25);
+    graphics.fillCircle(23, 13, 1.25);
+    graphics.fillStyle(0x93c5fd);
+    graphics.fillRect(4, 10, 3, 24);
     graphics.generateTexture("player", 34, 46);
     graphics.clear();
 
-    graphics.fillStyle(0xfacc15);
+    graphics.fillStyle(0x713f12);
     graphics.fillCircle(12, 12, 12);
-    graphics.lineStyle(3, 0xf59e0b);
-    graphics.strokeCircle(12, 12, 10);
-    graphics.fillStyle(0xffffff, 0.75);
-    graphics.fillCircle(8, 8, 3);
+    graphics.fillStyle(0xf59e0b);
+    graphics.fillCircle(11, 10, 10);
+    graphics.fillStyle(0xfef3c7);
+    graphics.fillCircle(8, 6, 3);
+    graphics.fillStyle(0xb45309);
+    graphics.fillRect(11, 1, 3, 18);
     graphics.generateTexture("coin", 24, 24);
     graphics.clear();
 
-    graphics.fillStyle(0xef4444);
+    graphics.fillStyle(0x7f1d1d);
     graphics.fillCircle(9, 8, 7);
     graphics.fillCircle(19, 8, 7);
     graphics.fillTriangle(3, 10, 25, 10, 14, 24);
-    graphics.lineStyle(2, 0x991b1b);
-    graphics.strokeCircle(9, 8, 7);
-    graphics.strokeCircle(19, 8, 7);
-    graphics.strokeTriangle(3, 10, 25, 10, 14, 24);
+    graphics.fillStyle(0xfb7185);
+    graphics.fillCircle(8, 7, 6);
+    graphics.fillCircle(18, 7, 6);
+    graphics.fillTriangle(2, 9, 24, 9, 14, 23);
+    graphics.fillStyle(0xffe4e6);
+    graphics.fillCircle(7, 5, 2);
     graphics.generateTexture("health", 28, 26);
     graphics.clear();
 
-    graphics.fillStyle(0x94a3b8);
+    graphics.fillStyle(0x0f172a);
     graphics.fillTriangle(0, 24, 10, 0, 20, 24);
     graphics.fillTriangle(12, 24, 22, 0, 32, 24);
-    graphics.lineStyle(2, 0x475569);
-    graphics.strokeTriangle(0, 24, 10, 0, 20, 24);
-    graphics.strokeTriangle(12, 24, 22, 0, 32, 24);
+    graphics.fillStyle(0x94a3b8);
+    graphics.fillTriangle(2, 23, 10, 3, 18, 23);
+    graphics.fillTriangle(14, 23, 22, 3, 30, 23);
+    graphics.fillStyle(0xe2e8f0);
+    graphics.fillTriangle(4, 20, 10, 5, 13, 20);
+    graphics.fillTriangle(16, 20, 22, 5, 25, 20);
     graphics.generateTexture("spikes", 32, 24);
     graphics.clear();
 
-    graphics.fillStyle(0xf8fafc);
-    graphics.fillRoundedRect(0, 0, 18, 8, 4);
-    graphics.fillStyle(0x38bdf8);
-    graphics.fillCircle(14, 4, 3);
+    graphics.fillStyle(0x0f172a);
+    graphics.fillRoundedRect(0, 1, 18, 8, 4);
+    graphics.fillStyle(0x67e8f9);
+    graphics.fillRoundedRect(1, 0, 16, 6, 3);
+    graphics.fillStyle(0xffffff);
+    graphics.fillCircle(14, 3, 2);
     graphics.generateTexture("bullet", 18, 8);
     graphics.clear();
 
-    graphics.fillStyle(0xfacc15);
+    graphics.fillStyle(0x78350f);
     graphics.fillRect(4, 7, 12, 22);
+    graphics.fillStyle(0xfbbf24);
+    graphics.fillRect(6, 8, 7, 16);
     graphics.fillStyle(0xf97316);
     graphics.fillRoundedRect(4, 0, 12, 10, 5);
-    graphics.fillStyle(0x92400e);
+    graphics.fillStyle(0xffedd5);
+    graphics.fillCircle(8, 4, 2);
+    graphics.fillStyle(0x451a03);
     graphics.fillRect(4, 25, 12, 4);
-    graphics.lineStyle(2, 0x78350f);
-    graphics.strokeRect(4, 7, 12, 22);
     graphics.generateTexture("ammoPickup", 20, 30);
     graphics.clear();
 
+    graphics.fillStyle(0x450a0a);
+    graphics.fillRoundedRect(1, 3, 34, 39, 8);
     graphics.fillStyle(0xef4444);
-    graphics.fillRoundedRect(0, 0, 36, 42, 8);
-    graphics.fillStyle(0x7f1d1d);
-    graphics.fillRect(5, 20, 26, 16);
+    graphics.fillRoundedRect(3, 1, 29, 35, 8);
+    graphics.fillStyle(0x991b1b);
+    graphics.fillRect(6, 23, 24, 12);
+    graphics.fillStyle(0xfecaca);
+    graphics.fillRect(5, 7, 3, 18);
     graphics.fillStyle(0xffffff);
     graphics.fillCircle(11, 12, 4);
-    graphics.fillCircle(25, 12, 4);
+    graphics.fillCircle(24, 12, 4);
     graphics.fillStyle(0x111827);
     graphics.fillCircle(11, 12, 1.5);
     graphics.fillCircle(25, 12, 1.5);
     graphics.generateTexture("enemy", 36, 42);
     graphics.clear();
 
+    graphics.fillStyle(0x3b0764);
+    graphics.fillRoundedRect(1, 7, 33, 31, 12);
     graphics.fillStyle(0x8b5cf6);
-    graphics.fillRoundedRect(0, 5, 34, 33, 12);
+    graphics.fillRoundedRect(3, 4, 28, 29, 12);
     graphics.fillStyle(0xc4b5fd);
-    graphics.fillRect(5, 25, 24, 8);
+    graphics.fillRect(6, 24, 21, 7);
     graphics.fillStyle(0xffffff);
     graphics.fillCircle(10, 15, 4);
     graphics.fillCircle(24, 15, 4);
@@ -335,10 +373,14 @@ class MainScene extends Phaser.Scene {
     graphics.generateTexture("hopper", 34, 38);
     graphics.clear();
 
+    graphics.fillStyle(0x431407);
+    graphics.fillRoundedRect(2, 10, 38, 24, 7);
     graphics.fillStyle(0xf97316);
-    graphics.fillRoundedRect(0, 8, 40, 26, 7);
-    graphics.fillStyle(0x7c2d12);
-    graphics.fillRect(8, 3, 24, 8);
+    graphics.fillRoundedRect(2, 7, 34, 23, 7);
+    graphics.fillStyle(0x9a3412);
+    graphics.fillRect(8, 2, 24, 8);
+    graphics.fillStyle(0xfdba74);
+    graphics.fillRect(9, 4, 18, 3);
     graphics.fillStyle(0xfef3c7);
     graphics.fillCircle(13, 21, 4);
     graphics.fillCircle(27, 21, 4);
@@ -348,42 +390,80 @@ class MainScene extends Phaser.Scene {
     graphics.generateTexture("sentry", 40, 34);
     graphics.clear();
 
+    graphics.fillStyle(0x4c0519);
+    graphics.fillRoundedRect(0, 1, 14, 8, 4);
     graphics.fillStyle(0xfb7185);
-    graphics.fillRoundedRect(0, 0, 14, 8, 4);
+    graphics.fillRoundedRect(1, 0, 12, 6, 3);
     graphics.fillStyle(0xfef3c7);
-    graphics.fillCircle(10, 4, 2);
+    graphics.fillCircle(10, 3, 2);
     graphics.generateTexture("enemyBullet", 14, 8);
     graphics.clear();
 
-    graphics.fillStyle(0x334155);
+    graphics.fillStyle(0x0f172a);
     graphics.fillRect(2, 0, 5, 52);
-    graphics.fillStyle(0x2563eb);
+    graphics.fillStyle(0x38bdf8);
     graphics.fillTriangle(7, 4, 30, 12, 7, 25);
-    graphics.lineStyle(2, 0x1e3a8a);
-    graphics.strokeTriangle(7, 4, 30, 12, 7, 25);
+    graphics.fillStyle(0x0e7490);
+    graphics.fillTriangle(7, 15, 30, 12, 7, 25);
     graphics.fillStyle(0xf8fafc);
     graphics.fillCircle(4.5, 2, 4);
     graphics.generateTexture("checkpoint", 32, 52);
     graphics.clear();
 
-    graphics.fillStyle(0x334155);
-    graphics.fillRoundedRect(0, 2, 29, 9, 3);
-    graphics.fillStyle(0x94a3b8);
-    graphics.fillRect(18, 4, 12, 4);
-    graphics.fillStyle(0x1e293b);
+    graphics.fillStyle(0x020617);
+    graphics.fillRoundedRect(0, 3, 29, 9, 3);
+    graphics.fillStyle(0x64748b);
+    graphics.fillRoundedRect(2, 2, 25, 6, 2);
+    graphics.fillStyle(0x38bdf8);
+    graphics.fillRect(18, 3, 12, 3);
+    graphics.fillStyle(0x0f172a);
     graphics.fillRect(8, 10, 7, 4);
-    graphics.fillStyle(0xfacc15);
-    graphics.fillCircle(25, 6, 2);
+    graphics.fillStyle(0xfef08a);
+    graphics.fillCircle(25, 4, 2);
     graphics.generateTexture("weapon", 30, 14);
     graphics.destroy();
   }
 
   createWorld() {
-    this.cameras.main.setBackgroundColor("#60a5fa");
+    this.cameras.main.setBackgroundColor("#020617");
 
-    const clouds = this.add.graphics();
-    clouds.fillStyle(0xffffff, 0.7);
-    [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145], [2050, 92], [2380, 140], [2680, 76]].forEach(([x, y]) => {
+    const sky = this.add.graphics().setDepth(-20);
+    sky.fillStyle(0x020617);
+    sky.fillRect(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
+    sky.fillStyle(0x0f1d3d);
+    sky.fillRect(0, 100, LEVEL_WIDTH, 180);
+    sky.fillStyle(0x172554);
+    sky.fillRect(0, 260, LEVEL_WIDTH, 120);
+    sky.fillStyle(0x1e1b4b);
+    sky.fillCircle(220, 105, 58);
+    sky.fillStyle(0xc4b5fd, 0.8);
+    sky.fillCircle(205, 91, 8);
+    sky.fillCircle(238, 123, 5);
+
+    const mountains = this.add.graphics().setDepth(-15);
+    mountains.fillStyle(0x111c3d);
+    for (let x = -80; x < LEVEL_WIDTH + 160; x += 180) {
+      mountains.fillTriangle(x, 410, x + 90, 200 + (x % 3) * 18, x + 180, 410);
+    }
+    mountains.fillStyle(0x172554);
+    for (let x = -40; x < LEVEL_WIDTH + 180; x += 145) {
+      mountains.fillTriangle(x, 455, x + 72, 275 + (x % 4) * 12, x + 145, 455);
+    }
+
+    const city = this.add.graphics().setDepth(-10);
+    city.fillStyle(0x0b1128);
+    for (let x = 40; x < LEVEL_WIDTH; x += 110) {
+      const height = 48 + ((x / 10) % 4) * 24;
+      city.fillRect(x, 470 - height, 72, height);
+      city.fillStyle(0x22d3ee, 0.45);
+      city.fillRect(x + 12, 482 - height, 8, 3);
+      city.fillRect(x + 37, 500 - height, 8, 3);
+      city.fillStyle(0x0b1128);
+    }
+
+    const clouds = this.add.graphics().setDepth(-5);
+    clouds.fillStyle(0xbae6fd, 0.18);
+    [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145], [2050, 92], [2380, 140], [2680, 76], [3020, 112], [3360, 70], [3680, 145], [4050, 86], [4380, 130], [4720, 75], [5070, 120], [5420, 90], [5680, 145]].forEach(([x, y]) => {
       clouds.fillCircle(x, y, 22);
       clouds.fillCircle(x + 27, y - 10, 30);
       clouds.fillCircle(x + 57, y, 20);
@@ -405,21 +485,40 @@ class MainScene extends Phaser.Scene {
     this.addPlatform(2350, 320, 2);
     this.addPlatform(2620, 245, 2);
     this.addPlatform(2800, 385, 1);
+    this.addPlatform(3360, 520, 8);
+    this.addPlatform(3070, 405, 2);
+    this.addPlatform(3290, 330, 2);
+    this.addPlatform(3550, 250, 2);
+    this.addPlatform(3740, 385, 1);
+    this.addPlatform(4320, 520, 8);
+    this.addPlatform(4020, 400, 2);
+    this.addPlatform(4240, 315, 2);
+    this.addPlatform(4460, 230, 2);
+    this.addPlatform(4700, 370, 1);
+    this.addPlatform(5280, 520, 8);
+    this.addPlatform(5000, 395, 2);
+    this.addPlatform(5220, 310, 2);
+    this.addPlatform(5480, 245, 2);
+    this.addPlatform(5700, 380, 1);
 
     this.physics.world.setBounds(0, 0, LEVEL_WIDTH, GAME_HEIGHT);
 
-    this.add.text(22, 20, "Základní herní scéna", {
+    this.add.text(22, 20, "NEONOVÝ SEKTOR", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
-      color: "#0f172a",
+      color: "#e0f2fe",
+      stroke: "#020617",
+      strokeThickness: 4,
     }).setScrollFactor(0);
 
     this.livesText = this.add.text(620, 20, "Životy:", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
-      color: "#0f172a",
+      color: "#e0f2fe",
+      stroke: "#020617",
+      strokeThickness: 4,
     }).setScrollFactor(0);
 
     this.lifeIcons = Array.from({ length: MAX_LIVES }, (_value, index) => (
@@ -432,20 +531,25 @@ class MainScene extends Phaser.Scene {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
-      color: "#0f172a",
+      color: "#fef3c7",
+      stroke: "#020617",
+      strokeThickness: 4,
     }).setScrollFactor(0);
 
     this.ammoText = this.add.text(22, 48, `Náboje: ${MAX_AMMO} / ${MAX_AMMO}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "18px",
       fontStyle: "bold",
-      color: "#0f172a",
+      color: "#fef3c7",
+      stroke: "#020617",
+      strokeThickness: 4,
     }).setScrollFactor(0);
   }
 
   addPlatform(x, y, widthInTiles) {
     const platform = this.platforms.create(x, y, "platform");
     platform.setDisplaySize(widthInTiles * 128, 32);
+    platform.setDepth(0);
     platform.refreshBody();
   }
 
@@ -455,6 +559,8 @@ class MainScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(1);
     this.physics.add.collider(this.player, this.platforms);
+    this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 25, 34, 9, 0x020617, 0.55)
+      .setDepth(0.25);
     this.playerLimbs = this.add.graphics().setDepth(0.5);
     this.weapon = this.add.image(this.player.x + 24, this.player.y + 4, "weapon")
       .setDepth(2);
@@ -486,6 +592,9 @@ class MainScene extends Phaser.Scene {
     const direction = this.player.flipX ? -1 : 1;
     const x = this.player.x;
     const y = this.player.y;
+
+    this.playerShadow.setPosition(x, y + 25);
+    this.playerShadow.setScale(this.player.body.blocked.down ? 1 : 0.72, 1);
 
     this.playerLimbs.clear();
     this.playerLimbs.lineStyle(5, 0x1e3a8a, 1);
@@ -543,6 +652,27 @@ class MainScene extends Phaser.Scene {
       [2580, 210],
       [2650, 210],
       [2800, 350],
+      [3030, 370],
+      [3100, 370],
+      [3250, 295],
+      [3320, 295],
+      [3510, 215],
+      [3580, 215],
+      [3740, 350],
+      [3980, 365],
+      [4050, 365],
+      [4200, 280],
+      [4270, 280],
+      [4420, 195],
+      [4490, 195],
+      [4700, 335],
+      [4960, 360],
+      [5030, 360],
+      [5180, 275],
+      [5250, 275],
+      [5440, 210],
+      [5510, 210],
+      [5700, 345],
     ].forEach(([x, y]) => this.coins.create(x, y, "coin"));
 
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, null, this);
@@ -564,6 +694,9 @@ class MainScene extends Phaser.Scene {
       [1800, 350],
       [2350, 285],
       [2800, 350],
+      [3550, 215],
+      [4460, 195],
+      [5480, 210],
     ].forEach(([x, y]) => this.healthPickups.create(x, y, "health"));
 
     this.physics.add.overlap(this.player, this.healthPickups, this.collectHealth, null, this);
@@ -626,6 +759,10 @@ class MainScene extends Phaser.Scene {
       [2380, 285],
       [2630, 210],
       [2800, 350],
+      [3290, 295],
+      [4240, 280],
+      [5220, 275],
+      [5700, 345],
     ].forEach(([x, y]) => this.ammoPickups.create(x, y, "ammoPickup"));
 
     this.physics.add.overlap(this.player, this.ammoPickups, this.collectAmmo, null, this);
@@ -660,6 +797,15 @@ class MainScene extends Phaser.Scene {
       [2052, 488],
       [2500, 488],
       [2620, 217],
+      [3150, 488],
+      [3182, 488],
+      [3550, 222],
+      [4100, 488],
+      [4132, 488],
+      [4460, 202],
+      [5050, 488],
+      [5082, 488],
+      [5480, 217],
     ].forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
@@ -670,6 +816,9 @@ class MainScene extends Phaser.Scene {
 
     this.addCheckpoint(1110, 350, 1110, 360);
     this.addCheckpoint(2150, 455, 2150, 470);
+    this.addCheckpoint(3070, 350, 3070, 360);
+    this.addCheckpoint(4240, 260, 4240, 270);
+    this.addCheckpoint(5000, 345, 5000, 350);
 
     this.physics.add.overlap(this.player, this.checkpoints, this.activateCheckpoint, null, this);
   }
@@ -734,6 +883,82 @@ class MainScene extends Phaser.Scene {
       lives: 3,
       nextActionAt: 1200,
     });
+    this.createEnemy({
+      x: 3290,
+      y: 292,
+      texture: "enemy",
+      type: "patrol",
+      lives: 2,
+      minX: 3200,
+      maxX: 3380,
+      speed: ENEMY_SPEED,
+    });
+    this.createEnemy({
+      x: 3740,
+      y: 348,
+      texture: "sentry",
+      type: "sentry",
+      lives: 3,
+      nextActionAt: 2400,
+    });
+    this.createEnemy({
+      x: 4240,
+      y: 280,
+      texture: "hopper",
+      type: "hopper",
+      lives: 1,
+      minX: 4140,
+      maxX: 4340,
+      speed: 105,
+      nextActionAt: 1700,
+    });
+    this.createEnemy({
+      x: 4460,
+      y: 193,
+      texture: "enemy",
+      type: "patrol",
+      lives: 2,
+      minX: 4360,
+      maxX: 4560,
+      speed: 90,
+    });
+    this.createEnemy({
+      x: 4700,
+      y: 337,
+      texture: "sentry",
+      type: "sentry",
+      lives: 3,
+      nextActionAt: 3400,
+    });
+    this.createEnemy({
+      x: 5220,
+      y: 275,
+      texture: "hopper",
+      type: "hopper",
+      lives: 1,
+      minX: 5120,
+      maxX: 5320,
+      speed: 110,
+      nextActionAt: 2900,
+    });
+    this.createEnemy({
+      x: 5480,
+      y: 208,
+      texture: "enemy",
+      type: "patrol",
+      lives: 2,
+      minX: 5380,
+      maxX: 5580,
+      speed: 95,
+    });
+    this.createEnemy({
+      x: 5700,
+      y: 347,
+      texture: "sentry",
+      type: "sentry",
+      lives: 3,
+      nextActionAt: 4100,
+    });
 
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.bullets, this.enemies, this.damageEnemy, null, this);
@@ -750,9 +975,10 @@ class MainScene extends Phaser.Scene {
       color: "#991b1b",
       stroke: "#ffffff",
       strokeThickness: 3,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(3);
 
     enemy.setData({ ...config, healthText });
+    enemy.setDepth(1);
     enemy.setVelocityX(config.type === "patrol" ? config.speed : 0);
     this.physics.add.collider(enemy, this.platforms);
     return enemy;
