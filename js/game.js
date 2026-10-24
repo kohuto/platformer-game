@@ -353,14 +353,20 @@ class MainScene extends Phaser.Scene {
       color: "#0f172a",
     }).setScrollFactor(0);
 
-    this.livesText = this.add.text(650, 20, `Životy: ${MAX_LIVES} / ${MAX_LIVES}`, {
+    this.livesText = this.add.text(620, 20, "Životy:", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
       color: "#0f172a",
     }).setScrollFactor(0);
 
-    this.scoreText = this.add.text(810, 20, "Mince: 0", {
+    this.lifeIcons = Array.from({ length: MAX_LIVES }, (_value, index) => (
+      this.add.image(715 + index * 29, 31, "health")
+        .setDisplaySize(24, 22)
+        .setScrollFactor(0)
+    ));
+
+    this.scoreText = this.add.text(805, 20, "Mince: 0", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
@@ -388,6 +394,7 @@ class MainScene extends Phaser.Scene {
     this.isHurt = false;
     this.gameOver = false;
     this.updatePlayerLimbs(0, false);
+    this.updateLivesText();
   }
 
   updateWeapon() {
@@ -493,7 +500,9 @@ class MainScene extends Phaser.Scene {
   }
 
   updateLivesText() {
-    this.livesText.setText(`Životy: ${this.lives} / ${MAX_LIVES}`);
+    this.lifeIcons.forEach((heart, index) => {
+      heart.setAlpha(index < this.lives ? 1 : 0.25);
+    });
   }
 
   createProjectiles() {
