@@ -14,11 +14,19 @@ const DASH_COOLDOWN = 950;
 const TIME_CHALLENGE_SECONDS = 300;
 const BOSS_LIVES = 5;
 const PROGRESS_STORAGE_KEY = "platformer-game-progress";
+const SETTINGS_STORAGE_KEY = "platformer-game-settings";
+const UPGRADES = {
+  rapid: { label: "Rychlá spoušť", detail: "Kratší prodleva mezi výstřely", cost: 3 },
+  reserve: { label: "Zásobník +", detail: "+4 náboje na začátku", cost: 4 },
+  shield: { label: "Nouzový štít", detail: "První zásah v levelu neubere život", cost: 5 },
+};
 const LEVELS = [
   { id: 1, name: "Neonový sektor", shortName: "NEON", description: "Město pod elektrickým nebem", accent: 0x35d6e8, sky: 0x07172f, horizon: 0x172554, ground: 0x0f766e, platformTint: 0xffffff },
   { id: 2, name: "Ledová citadela", shortName: "LED", description: "Mrazivé věže a skleněné mosty", accent: 0x93c5fd, sky: 0x0c1a2f, horizon: 0x1e3a5f, ground: 0x2563eb, platformTint: 0xdbeafe },
   { id: 3, name: "Lávové slévárny", shortName: "LÁVA", description: "Žár, kov a roztavené jádro", accent: 0xfb923c, sky: 0x260b0b, horizon: 0x7c2d12, ground: 0xdc2626, platformTint: 0xffedd5 },
   { id: 4, name: "Hvězdná trhlina", shortName: "PRÁZDNO", description: "Poslední cesta mezi hvězdami", accent: 0xc4b5fd, sky: 0x130d2b, horizon: 0x312e81, ground: 0x7c3aed, platformTint: 0xede9fe },
+  { id: 5, name: "Bouřkový hřeben", shortName: "BOUŘE", description: "Hromové věže nad rozbouřenými mraky", accent: 0xfde047, sky: 0x172033, horizon: 0x334155, ground: 0x0f4c5c, platformTint: 0xfef9c3 },
+  { id: 6, name: "Archiv noci", shortName: "ARCHIV", description: "Zapomenuté jádro kampaně pod městem", accent: 0x34d399, sky: 0x061b18, horizon: 0x134e4a, ground: 0x14532d, platformTint: 0xd1fae5 },
 ];
 const DIFFICULTIES = {
   easy: { label: "LEHKÁ", startingLives: 3, hurtDelay: 1200 },
@@ -26,7 +34,11 @@ const DIFFICULTIES = {
   hard: { label: "TĚŽKÁ", startingLives: 2, hurtDelay: 650 },
 };
 
-function playTone(scene, frequency, duration, type = "sine", volume = 0.04) {
+function playTone(scene, frequency, duration, type = "sine", volume = 0.04, channel = "effects") {
+  const settings = loadSettings();
+  if (channel === "music" ? !settings.music : !settings.effects) {
+    return;
+  }
   const context = scene.sound?.context;
 
   if (!context || context.state === "suspended") {
@@ -58,10 +70,33 @@ function loadProgress() {
       wins: progress.wins ?? 0,
       bestTime: progress.bestTime ?? null,
       unlockedLevel: progress.unlockedLevel ?? (progress.unlockedSector >= 2 ? 2 : 1),
+      stars: progress.stars ?? {},
+      upgrades: progress.upgrades ?? {},
     };
   } catch (_error) {
-    return { wins: 0, bestTime: null, unlockedLevel: 1 };
+    return { wins: 0, bestTime: null, unlockedLevel: 1, stars: {}, upgrades: {} };
   }
+}
+
+function loadSettings() {
+  try {
+    const settings = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)) ?? {};
+    return { effects: settings.effects ?? true, music: settings.music ?? true, shake: settings.shake ?? true };
+  } catch (_error) {
+    return { effects: true, music: true, shake: true };
+  }
+}
+
+function saveSettings(settings) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+}
+
+function getEarnedStars(progress) {
+  return Object.values(progress.stars ?? {}).reduce((total, amount) => total + amount, 0);
+}
+
+function getSpentStars(progress) {
+  return Object.entries(progress.upgrades ?? {}).reduce((total, [key, enabled]) => total + (enabled ? UPGRADES[key].cost : 0), 0);
 }
 
 function getLevel(levelId) {
@@ -76,8 +111,10 @@ const LEVEL_LAYOUTS = {
     coins: [[110, 470], [260, 470], [650, 420], [760, 420], [1000, 420], [1100, 420], [1360, 340], [1460, 340], [1580, 340], [1860, 390], [1960, 390], [2310, 300], [2410, 300], [2530, 300], [2820, 470]],
     health: [[700, 420], [1900, 390]], ammo: [[1050, 420], [2400, 300]], weapon: [[1450, 340]], spikes: [[420, 488], [2230, 488]],
     barriers: [{ x: 2450, lives: 3 }], gates: [{ gateX: 2700, switchX: 2400, switchY: 305 }], checkpoints: [[1900, 375, 1900, 390]],
+    exit: [2800, 468], lasers: [[1150, 440, 2600]], crumblePlatforms: [[1050, 470]],
     enemies: [
       { x: 700, y: 425, texture: "enemy", type: "patrol", lives: 2, minX: 620, maxX: 780, speed: 70 },
+      { x: 1050, y: 350, texture: "drone", type: "drone", lives: 1, minX: 890, maxX: 1200, speed: 85, hoverY: 350, nextActionAt: 1000 },
       { x: 1450, y: 345, texture: "hopper", type: "hopper", lives: 1, minX: 1320, maxX: 1580, speed: 90, nextActionAt: 700 },
       { x: 1900, y: 400, texture: "sentry", type: "sentry", lives: 2, nextActionAt: 1200 },
     ],
@@ -89,11 +126,12 @@ const LEVEL_LAYOUTS = {
     coins: [[120, 470], [250, 470], [540, 380], [740, 290], [920, 200], [1000, 200], [1260, 130], [1540, 200], [1780, 300], [2020, 400], [2120, 400], [2340, 470], [2440, 470], [2720, 370], [2810, 370], [3050, 270], [3330, 190], [3590, 470]],
     health: [[1260, 130], [2380, 470]], ammo: [[960, 200], [3050, 270]], weapon: [[1540, 200]], spikes: [[410, 488], [2480, 488]],
     barriers: [{ x: 2450, lives: 3 }], gates: [{ gateX: 3500, switchX: 3330, switchY: 195 }], checkpoints: [[2020, 405, 2020, 420], [2750, 375, 2750, 390]],
+    exit: [3600, 468], lasers: [[1850, 420, 2850]], crumblePlatforms: [[1780, 350], [3050, 320]],
     enemies: [
-      { x: 960, y: 205, texture: "hopper", type: "hopper", lives: 1, minX: 850, maxX: 1070, speed: 100, nextActionAt: 700 },
-      { x: 1540, y: 205, texture: "enemy", type: "patrol", lives: 2, minX: 1480, maxX: 1600, speed: 75 },
-      { x: 2750, y: 380, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
-      { x: 3330, y: 195, texture: "enemy", type: "patrol", lives: 2, minX: 3270, maxX: 3390, speed: 95 },
+      { x: 960, y: 205, texture: "skater", type: "skater", lives: 1, minX: 850, maxX: 1070, speed: 155 },
+      { x: 1540, y: 205, texture: "skater", type: "skater", lives: 2, minX: 1480, maxX: 1600, speed: 135 },
+      { x: 2750, y: 380, texture: "hopper", type: "hopper", lives: 2, minX: 2660, maxX: 2840, speed: 100, nextActionAt: 1300 },
+      { x: 3330, y: 195, texture: "skater", type: "skater", lives: 2, minX: 3270, maxX: 3390, speed: 165 },
     ],
   },
   3: {
@@ -104,11 +142,12 @@ const LEVEL_LAYOUTS = {
     coins: [[110, 470], [250, 470], [600, 370], [850, 250], [1120, 370], [1340, 200], [1450, 200], [1690, 350], [1920, 470], [2050, 470], [2400, 310], [2640, 190], [2750, 190], [3100, 340], [3330, 470], [3450, 470], [3740, 280], [3840, 280], [4160, 470]],
     health: [[1400, 200], [3400, 470]], ammo: [[1120, 370], [3800, 280]], weapon: [[2700, 190]], spikes: [[430, 488], [2110, 488], [3500, 488]],
     barriers: [{ x: 2050, lives: 4 }, { x: 3400, lives: 4 }], gates: [{ gateX: 4000, switchX: 3800, switchY: 285 }], checkpoints: [[2000, 455, 2000, 470], [3400, 455, 3400, 470]],
+    exit: [4200, 468], lasers: [[1250, 440, 2400], [3250, 440, 3600]], crumblePlatforms: [[1750, 400], [3100, 390]],
     enemies: [
-      { x: 600, y: 375, texture: "enemy", type: "patrol", lives: 2, minX: 540, maxX: 660, speed: 90 },
-      { x: 1400, y: 205, texture: "hopper", type: "hopper", lives: 2, minX: 1280, maxX: 1520, speed: 105, nextActionAt: 800 },
+      { x: 600, y: 375, texture: "bomber", type: "bomber", lives: 1, minX: 540, maxX: 660, speed: 75 },
+      { x: 1400, y: 205, texture: "bomber", type: "bomber", lives: 2, minX: 1280, maxX: 1520, speed: 80 },
       { x: 1750, y: 360, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1200 },
-      { x: 2700, y: 195, texture: "enemy", type: "patrol", lives: 2, minX: 2580, maxX: 2820, speed: 105 },
+      { x: 2700, y: 195, texture: "bomber", type: "bomber", lives: 2, minX: 2580, maxX: 2820, speed: 90 },
       { x: 3100, y: 350, texture: "hopper", type: "hopper", lives: 2, minX: 3040, maxX: 3160, speed: 110, nextActionAt: 1650 },
       { x: 3800, y: 290, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1900 },
     ],
@@ -121,13 +160,51 @@ const LEVEL_LAYOUTS = {
     coins: [[100, 470], [230, 470], [620, 300], [900, 170], [1195, 330], [1580, 130], [1870, 280], [2180, 470], [2300, 470], [2620, 210], [2950, 90], [3300, 260], [3650, 450], [3750, 450], [4050, 220], [4410, 470]],
     health: [[900, 170], [3700, 450]], ammo: [[1580, 130], [4100, 220]], weapon: [[3000, 90]], spikes: [[390, 488], [2380, 488]],
     barriers: [{ x: 2250, lives: 4 }, { x: 4450, lives: 5 }], gates: [{ gateX: 4300, switchX: 4100, switchY: 225 }], checkpoints: [[2250, 455, 2250, 470], [3700, 435, 3700, 450]],
+    exit: [4360, 468], lasers: [[2050, 440, 3300]], crumblePlatforms: [[1250, 380], [2620, 260]],
     enemies: [
-      { x: 580, y: 305, texture: "enemy", type: "patrol", lives: 2, minX: 520, maxX: 640, speed: 90 },
-      { x: 1250, y: 335, texture: "hopper", type: "hopper", lives: 2, minX: 1190, maxX: 1310, speed: 110, nextActionAt: 700 },
-      { x: 1920, y: 290, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
-      { x: 3000, y: 95, texture: "enemy", type: "patrol", lives: 2, minX: 2940, maxX: 3060, speed: 110 },
-      { x: 3350, y: 270, texture: "hopper", type: "hopper", lives: 2, minX: 3290, maxX: 3410, speed: 115, nextActionAt: 1800 },
-      { x: 4100, y: 230, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 2100 },
+      { x: 580, y: 305, texture: "phase", type: "phase", lives: 2, minX: 520, maxX: 640, speed: 90, nextActionAt: 1300 },
+      { x: 1250, y: 335, texture: "phase", type: "phase", lives: 2, minX: 1160, maxX: 1340, speed: 110, nextActionAt: 1700 },
+      { x: 1920, y: 290, texture: "drone", type: "drone", lives: 2, minX: 1820, maxX: 2020, speed: 85, hoverY: 260, nextActionAt: 1300 },
+      { x: 3000, y: 95, texture: "phase", type: "phase", lives: 2, minX: 2940, maxX: 3060, speed: 115, nextActionAt: 2000 },
+      { x: 3350, y: 270, texture: "phase", type: "phase", lives: 2, minX: 3290, maxX: 3410, speed: 115, nextActionAt: 1800 },
+      { x: 4100, y: 230, texture: "drone", type: "drone", lives: 3, minX: 3980, maxX: 4180, speed: 100, hoverY: 210, nextActionAt: 2100 },
+    ],
+  },
+  5: {
+    width: 5000,
+    // Bouře: střídání vysokých věží a širokých bezpečných teras.
+    platforms: [[230, 520, 3], [620, 420, 2], [970, 280, 1], [1260, 430, 1], [1550, 210, 2], [1900, 360, 1], [2200, 520, 3], [2580, 390, 2], [2920, 250, 1], [3220, 430, 1], [3550, 190, 2], [3920, 350, 1], [4600, 520, 6]],
+    movingPlatforms: [{ x: 1150, y: 340, width: 128, amplitude: 95, speed: 0.001, axis: "y" }, { x: 2450, y: 325, width: 128, amplitude: 120, speed: 0.001, axis: "x" }, { x: 3750, y: 295, width: 128, amplitude: 100, speed: 0.0012, axis: "y" }],
+    coins: [[110, 470], [250, 470], [570, 370], [670, 370], [970, 230], [1260, 380], [1480, 160], [1600, 160], [1900, 310], [2110, 470], [2250, 470], [2530, 340], [2630, 340], [2920, 200], [3220, 380], [3480, 140], [3600, 140], [3920, 300], [4230, 470], [4370, 470]],
+    health: [[1550, 160], [3550, 140]], ammo: [[970, 230], [3220, 380]], weapon: [[2580, 340]], spikes: [[410, 488], [2350, 488], [4100, 488]],
+    barriers: [{ x: 2200, lives: 4 }, { x: 4550, lives: 5 }], gates: [{ gateX: 4000, switchX: 3920, switchY: 305 }], checkpoints: [[2200, 455, 2200, 470], [3550, 125, 3550, 140]],
+    exit: [4400, 468], lasers: [[1740, 440, 3000], [3300, 440, 1000]], crumblePlatforms: [[1260, 430], [3220, 430]],
+    enemies: [
+      { x: 620, y: 370, texture: "drone", type: "drone", lives: 2, minX: 500, maxX: 760, speed: 105, hoverY: 340, nextActionAt: 1000 },
+      { x: 970, y: 235, texture: "skater", type: "skater", lives: 2, minX: 910, maxX: 1030, speed: 170 },
+      { x: 1550, y: 165, texture: "drone", type: "drone", lives: 2, minX: 1420, maxX: 1680, speed: 110, hoverY: 145, nextActionAt: 1500 },
+      { x: 2580, y: 345, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
+      { x: 3550, y: 145, texture: "drone", type: "drone", lives: 3, minX: 3420, maxX: 3680, speed: 120, hoverY: 125, nextActionAt: 1700 },
+      { x: 3920, y: 305, texture: "skater", type: "skater", lives: 2, minX: 3860, maxX: 3980, speed: 180 },
+    ],
+  },
+  6: {
+    width: 5400,
+    // Archiv: dlouhá podzemní galerie s pravidelnými komorami a závěrečnou arénou.
+    platforms: [[260, 520, 4], [760, 440, 2], [1120, 340, 2], [1500, 520, 3], [1900, 390, 1], [2180, 270, 2], [2560, 430, 1], [2860, 520, 4], [3380, 350, 2], [3740, 240, 1], [4040, 410, 2], [4400, 520, 3], [5100, 520, 6]],
+    movingPlatforms: [{ x: 1650, y: 360, width: 128, amplitude: 115, speed: 0.0011, axis: "x" }, { x: 3080, y: 340, width: 128, amplitude: 105, speed: 0.001, axis: "y" }, { x: 4200, y: 310, width: 128, amplitude: 115, speed: 0.0011, axis: "x" }],
+    coins: [[120, 470], [270, 470], [700, 390], [810, 390], [1060, 290], [1180, 290], [1430, 470], [1560, 470], [1900, 340], [2120, 220], [2230, 220], [2560, 380], [2780, 470], [2920, 470], [3320, 300], [3430, 300], [3740, 190], [3980, 360], [4100, 360], [4330, 470], [4470, 470], [4800, 470]],
+    health: [[1120, 290], [4040, 360]], ammo: [[2180, 220], [3740, 190]], weapon: [[3380, 300]], spikes: [[520, 488], [1650, 488], [3040, 488], [4550, 488]],
+    barriers: [{ x: 2860, lives: 5 }, { x: 4550, lives: 5 }], gates: [{ gateX: 4700, switchX: 4400, switchY: 475 }], checkpoints: [[2860, 455, 2860, 470], [4400, 455, 4400, 470]],
+    exit: [5000, 468], lasers: [[1300, 440, 800], [3600, 440, 2000]], crumblePlatforms: [[760, 440], [2560, 430], [4040, 410]],
+    enemies: [
+      { x: 760, y: 395, texture: "phase", type: "phase", lives: 2, minX: 650, maxX: 870, speed: 105, nextActionAt: 1100 },
+      { x: 1120, y: 295, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1400 },
+      { x: 1900, y: 345, texture: "phase", type: "phase", lives: 2, minX: 1840, maxX: 1960, speed: 115, nextActionAt: 1800 },
+      { x: 2180, y: 225, texture: "drone", type: "drone", lives: 2, minX: 2040, maxX: 2320, speed: 100, hoverY: 200, nextActionAt: 1500 },
+      { x: 3380, y: 305, texture: "sentry", type: "sentry", lives: 3, nextActionAt: 1300 },
+      { x: 4040, y: 365, texture: "bomber", type: "bomber", lives: 2, minX: 3920, maxX: 4160, speed: 95 },
+      { x: 4400, y: 475, texture: "phase", type: "phase", lives: 3, minX: 4300, maxX: 4500, speed: 120, nextActionAt: 2100 },
     ],
   },
 };
@@ -217,34 +294,34 @@ class MenuScene extends Phaser.Scene {
   create() {
     this.selectedDifficulty = "normal";
     this.progress = loadProgress();
-    this.selectedLevel = this.progress.unlockedLevel;
+    this.selectedLevel = Phaser.Math.Clamp(this.progress.unlockedLevel, 1, LEVELS.length);
     addSceneBackdrop(this);
 
-    this.add.text(480, 78, "NEON HORIZON", {
+    this.add.text(480, 30, "NEON HORIZON  ·  KAMPAŇ", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "14px",
+      fontSize: "13px",
       fontStyle: "bold",
       color: "#67e8f9",
-      letterSpacing: 4,
+      letterSpacing: 3,
     }).setOrigin(0.5);
 
-    this.add.text(480, 126, "Skok do dobrodružství", {
+    this.add.text(480, 62, "Vyber si další výpravu", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "42px",
+      fontSize: "27px",
       fontStyle: "bold",
       color: "#e0f2fe",
     }).setOrigin(0.5);
 
-    this.add.text(480, 157, "Projdi cestu světy a odemykej další výpravy.", {
+    this.add.text(480, 84, "Klikni na odemčený sektor, zvol obtížnost a vydej se dál.", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "16px",
+      fontSize: "13px",
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
-    createUiCard(this, 330, 316, 500, 270);
-    createUiCard(this, 745, 316, 200, 270);
+    createUiCard(this, 330, 260, 610, 326);
+    createUiCard(this, 780, 260, 270, 326);
 
-    this.add.text(330, 220, "MAPA VÝPRAVY", {
+    this.add.text(330, 112, "CESTA SVĚTY", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       fontStyle: "bold",
@@ -253,16 +330,20 @@ class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.mapNodes = [];
-    const mapPositions = [[155, 330], [275, 278], [400, 342], [510, 267]];
+    const mapPositions = [[105, 165], [285, 165], [465, 165], [105, 270], [285, 270], [465, 270]];
     const route = this.add.graphics();
     route.lineStyle(3, 0x365273, 0.8);
     mapPositions.slice(0, -1).forEach((point, index) => route.lineBetween(point[0], point[1], mapPositions[index + 1][0], mapPositions[index + 1][1]));
     LEVELS.forEach((level, index) => this.createMapNode(mapPositions[index][0], mapPositions[index][1], level));
-    this.levelInfo = this.add.text(330, 411, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "13px", color: UI_COLORS.muted, align: "center", wordWrap: { width: 430 },
+    this.levelInfo = this.add.text(330, 336, "", {
+      fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "bold", color: UI_COLORS.text, align: "center", wordWrap: { width: 500 },
     }).setOrigin(0.5);
+    this.levelDescription = this.add.text(330, 362, "", {
+      fontFamily: "system-ui, sans-serif", fontSize: "12px", color: UI_COLORS.muted, align: "center", wordWrap: { width: 500 },
+    }).setOrigin(0.5);
+    this.levelStatus = this.add.text(330, 387, "", { fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "bold", color: "#fde68a" }).setOrigin(0.5);
 
-    this.add.text(745, 220, "OBTÍŽNOST", {
+    this.add.text(780, 112, "OBTÍŽNOST", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       fontStyle: "bold",
@@ -274,20 +355,32 @@ class MenuScene extends Phaser.Scene {
       ["easy", "LEHKÁ", "Více času na chybu"],
       ["normal", "NORMÁLNÍ", "Doporučená volba"],
       ["hard", "TĚŽKÁ", "Rychlá reakce nutná"],
-    ].forEach(([key, label, detail], index) => this.createDifficultyButton(745, 263 + index * 54, key, label, detail));
+    ].forEach(([key, label, detail], index) => this.createDifficultyButton(780, 153 + index * 57, key, label, detail));
+    this.add.text(780, 342, "Každý svět ukládá vlastní počet hvězd.", {
+      fontFamily: "system-ui, sans-serif", fontSize: "11px", color: UI_COLORS.muted, align: "center", wordWrap: { width: 220 },
+    }).setOrigin(0.5);
 
     const startGame = () => this.scene.start("MainScene", {
       difficulty: this.selectedDifficulty,
       level: this.selectedLevel,
     });
-    createUiButton(this, { x: 480, y: 465, width: 330, label: "SPUSTIT VÝPRAVU", onClick: startGame });
-    this.add.text(480, 512, `Rekord ${this.progress.bestTime === null ? "—" : formatDuration(this.progress.bestTime)}   •   Dokončení ${this.progress.wins}`, {
+    createUiButton(this, { x: 480, y: 450, width: 330, label: "SPUSTIT VÝPRAVU", onClick: startGame });
+    this.add.text(480, 494, `Rekord ${this.progress.bestTime === null ? "—" : formatDuration(this.progress.bestTime)}   ·   Dokončení ${this.progress.wins}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "14px",
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
+    const utility = this.add.text(480, 518, `VYLEPŠENÍ (${getEarnedStars(this.progress) - getSpentStars(this.progress)} ★)   ·   NASTAVENÍ`, {
+      fontFamily: "system-ui, sans-serif", fontSize: "10px", fontStyle: "bold", color: "#93c5fd",
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    utility.on("pointerdown", (pointer) => {
+      this.scene.start(pointer.x < 480 ? "UpgradeScene" : "SettingsScene");
+    });
+
     this.input.keyboard.once("keydown-ENTER", startGame);
+    this.input.keyboard.once("keydown-U", () => this.scene.start("UpgradeScene"));
+    this.input.keyboard.once("keydown-O", () => this.scene.start("SettingsScene"));
     this.refreshMenuSelection();
   }
 
@@ -320,12 +413,91 @@ class MenuScene extends Phaser.Scene {
       item.core.setFillStyle(item.unlocked ? (active ? UI_COLORS.yellow : item.level.accent) : 0x1d2b42);
     });
     const selected = getLevel(this.selectedLevel);
-    this.levelInfo.setText(`${selected.name}  ·  ${selected.description}`);
+    const stars = this.progress.stars?.[selected.id] ?? 0;
+    this.levelInfo.setText(selected.name);
+    this.levelDescription.setText(selected.description);
+    this.levelStatus.setText(`SEKTOR ${selected.id} / ${LEVELS.length}   ·   ${"★".repeat(stars)}${"☆".repeat(3 - stars)}`);
     this.difficultyButtons.forEach((item) => {
       const active = item.key === this.selectedDifficulty;
       item.button.setFillStyle(active ? 0x243d62 : 0x14233e);
       item.button.setStrokeStyle(active ? 2 : 1, active ? UI_COLORS.purple : UI_COLORS.panelEdge);
       item.labelText.setColor(active ? "#ddd6fe" : UI_COLORS.text);
+    });
+  }
+}
+
+class UpgradeScene extends Phaser.Scene {
+  constructor() { super("UpgradeScene"); }
+
+  create() {
+    this.progress = loadProgress();
+    addSceneBackdrop(this, UI_COLORS.purple);
+    createUiCard(this, 480, 282, 620, 430);
+    this.add.text(480, 105, "VÝBAVA HRDINY", { fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0.5);
+    this.starText = this.add.text(480, 142, "", { fontFamily: "system-ui, sans-serif", fontSize: "15px", color: "#fde68a" }).setOrigin(0.5);
+    this.upgradeRows = [];
+    Object.entries(UPGRADES).forEach(([key, upgrade], index) => this.createUpgradeRow(key, upgrade, 215 + index * 78));
+    createUiButton(this, { x: 480, y: 460, width: 250, label: "ZPĚT NA MAPU", secondary: true, onClick: () => this.scene.start("MenuScene") });
+    this.refreshUpgrades();
+  }
+
+  createUpgradeRow(key, upgrade, y) {
+    const card = this.add.rectangle(480, y, 540, 62, 0x14233e).setStrokeStyle(1, UI_COLORS.panelEdge);
+    const title = this.add.text(235, y - 11, upgrade.label, { fontFamily: "system-ui, sans-serif", fontSize: "16px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0, 0.5);
+    const detail = this.add.text(235, y + 12, upgrade.detail, { fontFamily: "system-ui, sans-serif", fontSize: "12px", color: UI_COLORS.muted }).setOrigin(0, 0.5);
+    const button = this.add.text(694, y, "", { fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "bold", color: "#07111f", backgroundColor: "#67e8f9", padding: { x: 10, y: 8 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    button.on("pointerdown", () => this.buyUpgrade(key));
+    this.upgradeRows.push({ key, upgrade, card, title, detail, button });
+  }
+
+  buyUpgrade(key) {
+    if (this.progress.upgrades[key]) return;
+    const available = getEarnedStars(this.progress) - getSpentStars(this.progress);
+    if (available < UPGRADES[key].cost) return;
+    this.progress.upgrades[key] = true;
+    saveProgress(this.progress);
+    this.refreshUpgrades();
+  }
+
+  refreshUpgrades() {
+    const available = getEarnedStars(this.progress) - getSpentStars(this.progress);
+    this.starText.setText(`Dostupné hvězdy: ${available} ★`);
+    this.upgradeRows.forEach((row) => {
+      const unlocked = this.progress.upgrades[row.key];
+      row.card.setFillStyle(unlocked ? 0x16354a : 0x14233e);
+      row.button.setText(unlocked ? "AKTIVNÍ" : `${row.upgrade.cost} ★`);
+      row.button.setBackgroundColor(unlocked ? "#41d6a0" : available >= row.upgrade.cost ? "#67e8f9" : "#64748b");
+    });
+  }
+}
+
+class SettingsScene extends Phaser.Scene {
+  constructor() { super("SettingsScene"); }
+
+  create() {
+    this.settings = loadSettings();
+    addSceneBackdrop(this, UI_COLORS.cyan);
+    createUiCard(this, 480, 280, 500, 370);
+    this.add.text(480, 132, "NASTAVENÍ", { fontFamily: "system-ui, sans-serif", fontSize: "30px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0.5);
+    this.settingButtons = [];
+    [["effects", "Zvukové efekty"], ["music", "Hudební motiv"], ["shake", "Otřes kamery"]].forEach(([key, label], index) => this.createSettingRow(key, label, 220 + index * 62));
+    createUiButton(this, { x: 480, y: 405, width: 250, label: "ZPĚT NA MAPU", secondary: true, onClick: () => this.scene.start("MenuScene") });
+    this.refreshSettings();
+  }
+
+  createSettingRow(key, label, y) {
+    this.add.text(290, y, label, { fontFamily: "system-ui, sans-serif", fontSize: "17px", color: UI_COLORS.text }).setOrigin(0, 0.5);
+    const button = this.add.text(650, y, "", { fontFamily: "system-ui, sans-serif", fontSize: "13px", fontStyle: "bold", padding: { x: 16, y: 8 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    button.on("pointerdown", () => { this.settings[key] = !this.settings[key]; saveSettings(this.settings); this.refreshSettings(); });
+    this.settingButtons.push({ key, button });
+  }
+
+  refreshSettings() {
+    this.settingButtons.forEach(({ key, button }) => {
+      const enabled = this.settings[key];
+      button.setText(enabled ? "ZAPNUTO" : "VYPNUTO");
+      button.setColor(enabled ? "#052e2b" : "#fee2e2");
+      button.setBackgroundColor(enabled ? "#5eead4" : "#7f1d1d");
     });
   }
 }
@@ -339,6 +511,7 @@ class GameOverScene extends Phaser.Scene {
     this.finalScore = data.score ?? 0;
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
+    this.finalStars = data.stars ?? 0;
     this.difficulty = data.difficulty ?? "normal";
     this.level = data.level ?? 1;
   }
@@ -390,6 +563,7 @@ class VictoryScene extends Phaser.Scene {
     this.finalScore = data.score ?? 0;
     this.finalKills = data.kills ?? 0;
     this.finalTime = data.time ?? 0;
+    this.finalStars = data.stars ?? 0;
     this.difficulty = data.difficulty ?? "normal";
     this.level = data.level ?? 1;
   }
@@ -407,13 +581,13 @@ class VictoryScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.add.text(480, 202, "Vítězství", { fontFamily: "system-ui, sans-serif", fontSize: "42px", fontStyle: "bold", color: UI_COLORS.text }).setOrigin(0.5);
 
-    this.add.text(480, 210, "Posbíral/a jsi všechny mince a porazil/a bosse.", {
+    this.add.text(480, 238, "Aktivoval/a jsi portál a zajistil/a sektor.", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "17px",
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
-    this.add.text(480, 250, `Celkem mincí: ${this.finalScore}`, {
+    this.add.text(480, 270, `Hodnocení: ${"★".repeat(this.finalStars)}${"☆".repeat(3 - this.finalStars)}   ·   Mince: ${this.finalScore}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "20px",
       fontStyle: "bold",
@@ -421,13 +595,13 @@ class VictoryScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const challengeStatus = this.finalTime <= TIME_CHALLENGE_SECONDS ? "Časová výzva splněna!" : "Časová výzva: zkus to pod 5:00";
-    this.add.text(480, 282, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
+    this.add.text(480, 300, `Poražení nepřátelé: ${this.finalKills}  ·  Čas: ${formatDuration(this.finalTime)}  ·  ${DIFFICULTIES[this.difficulty].label}`, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "16px",
       color: UI_COLORS.muted,
     }).setOrigin(0.5);
 
-    this.add.text(480, 305, challengeStatus, {
+    this.add.text(480, 327, challengeStatus, {
       fontFamily: "system-ui, sans-serif",
       fontSize: "16px",
       fontStyle: "bold",
@@ -437,8 +611,8 @@ class VictoryScene extends Phaser.Scene {
     const restartGame = () => this.scene.start("MainScene", { difficulty: this.difficulty, level: this.level });
     const returnToMenu = () => this.scene.start("MenuScene");
 
-    createUiButton(this, { x: 480, y: 374, width: 330, label: "HRÁT ZNOVU", accent: UI_COLORS.green, onClick: restartGame });
-    createUiButton(this, { x: 480, y: 440, width: 330, label: "ZPĚT DO HLAVNÍ NABÍDKY", onClick: returnToMenu, secondary: true });
+    createUiButton(this, { x: 480, y: 388, width: 330, label: "HRÁT ZNOVU", accent: UI_COLORS.green, onClick: restartGame });
+    createUiButton(this, { x: 480, y: 450, width: 330, label: "ZPĚT DO HLAVNÍ NABÍDKY", onClick: returnToMenu, secondary: true });
 
     this.input.keyboard.once("keydown-ENTER", restartGame);
     this.input.keyboard.once("keydown-R", restartGame);
@@ -508,6 +682,9 @@ class MainScene extends Phaser.Scene {
     this.layout = getLevelLayout(this.level);
     this.levelWidth = this.layout.width;
     this.difficultySettings = DIFFICULTIES[this.difficulty] ?? DIFFICULTIES.normal;
+    this.progress = loadProgress();
+    this.settings = loadSettings();
+    this.upgrades = this.progress.upgrades ?? {};
   }
 
   create() {
@@ -522,12 +699,17 @@ class MainScene extends Phaser.Scene {
     this.createAmmoPickups();
     this.createWeaponPickups();
     this.createHazards();
+    this.createCrumblePlatforms();
+    this.createLaserTraps();
     this.createBarriers();
     this.createLogicGates();
     this.createCheckpoints();
     this.createEnemies();
     this.createBoss();
+    this.createExitPortal();
     this.createControls();
+    this.showStoryIntro();
+    this.startWorldMusic();
   }
 
   createTextures() {
@@ -682,6 +864,59 @@ class MainScene extends Phaser.Scene {
     graphics.generateTexture("sentry", 40, 34);
     graphics.clear();
 
+    // Neonový dron: hlídkuje ve vzduchu a střílí krátké dávky.
+    graphics.fillStyle(0x082f49);
+    graphics.fillEllipse(22, 20, 42, 22);
+    graphics.fillStyle(0x22d3ee);
+    graphics.fillEllipse(22, 17, 33, 15);
+    graphics.fillStyle(0xe0f2fe);
+    graphics.fillCircle(15, 17, 3);
+    graphics.fillCircle(29, 17, 3);
+    graphics.fillStyle(0x0e7490);
+    graphics.fillRect(3, 13, 8, 3);
+    graphics.fillRect(33, 13, 8, 3);
+    graphics.generateTexture("drone", 44, 32);
+    graphics.clear();
+
+    // Ledový bruslař: rychlý protivník, který sviští po platformě.
+    graphics.fillStyle(0x1e3a8a);
+    graphics.fillRoundedRect(3, 4, 30, 29, 9);
+    graphics.fillStyle(0x93c5fd);
+    graphics.fillRoundedRect(6, 6, 24, 18, 7);
+    graphics.fillStyle(0xffffff);
+    graphics.fillCircle(13, 14, 3);
+    graphics.fillCircle(24, 14, 3);
+    graphics.fillStyle(0x60a5fa);
+    graphics.fillRect(2, 30, 34, 3);
+    graphics.fillStyle(0xe0f2fe);
+    graphics.fillRect(6, 34, 26, 2);
+    graphics.generateTexture("skater", 38, 38);
+    graphics.clear();
+
+    // Lávový výbušník: při přiblížení exploduje a je nebezpečný na blízko.
+    graphics.fillStyle(0x7c2d12);
+    graphics.fillCircle(19, 19, 18);
+    graphics.fillStyle(0xf97316);
+    graphics.fillCircle(19, 17, 14);
+    graphics.fillStyle(0xfef08a);
+    graphics.fillCircle(13, 14, 3);
+    graphics.fillCircle(25, 14, 3);
+    graphics.fillStyle(0x7f1d1d);
+    graphics.fillTriangle(14, 25, 19, 29, 24, 25);
+    graphics.generateTexture("bomber", 38, 38);
+    graphics.clear();
+
+    // Fázový přízrak: mizí a znovu se objevuje na vzdálenějším ostrově.
+    graphics.fillStyle(0x312e81, 0.78);
+    graphics.fillTriangle(19, 1, 36, 34, 2, 34);
+    graphics.fillStyle(0xc4b5fd);
+    graphics.fillTriangle(19, 5, 31, 30, 7, 30);
+    graphics.fillStyle(0xf5f3ff);
+    graphics.fillCircle(14, 19, 3);
+    graphics.fillCircle(24, 19, 3);
+    graphics.generateTexture("phase", 38, 38);
+    graphics.clear();
+
     graphics.fillStyle(0x4c0519);
     graphics.fillRoundedRect(0, 1, 14, 8, 4);
     graphics.fillStyle(0xfb7185);
@@ -763,6 +998,28 @@ class MainScene extends Phaser.Scene {
     graphics.fillCircle(25, 4, 2);
     graphics.generateTexture("weapon", 30, 14);
     graphics.destroy();
+
+    const portal = this.add.graphics();
+    portal.fillStyle(0x1e1b4b);
+    portal.fillRoundedRect(2, 1, 40, 62, 18);
+    portal.fillStyle(0x7c3aed);
+    portal.fillRoundedRect(7, 6, 30, 52, 14);
+    portal.fillStyle(0xc4b5fd);
+    portal.fillRoundedRect(13, 12, 18, 40, 9);
+    portal.fillStyle(0xfef3c7);
+    portal.fillCircle(22, 20, 4);
+    portal.generateTexture("portal", 44, 64);
+    portal.destroy();
+
+    const laser = this.add.graphics();
+    laser.fillStyle(0x450a0a);
+    laser.fillRoundedRect(0, 0, 20, 74, 6);
+    laser.fillStyle(0xfb7185);
+    laser.fillRect(8, 5, 4, 64);
+    laser.fillStyle(0xffe4e6);
+    laser.fillRect(9, 7, 2, 60);
+    laser.generateTexture("laser", 20, 74);
+    laser.destroy();
   }
 
   createWorld() {
@@ -941,6 +1198,33 @@ class MainScene extends Phaser.Scene {
       for (let x = 140; x < this.levelWidth; x += 390) {
         decorations.fillTriangle(x, 390, x + 70, 225, x + 130, 420);
       }
+      return;
+    }
+
+    if (this.level === 5) {
+      decorations.fillStyle(0x94a3b8, 0.2);
+      for (let x = 40; x < this.levelWidth; x += 220) {
+        decorations.fillCircle(x, 130 + (x % 4) * 25, 56);
+        decorations.fillCircle(x + 55, 140 + (x % 3) * 18, 42);
+      }
+      decorations.lineStyle(2, 0xfde047, 0.38);
+      for (let x = 180; x < this.levelWidth; x += 520) {
+        decorations.lineBetween(x, 90, x - 24, 178);
+        decorations.lineBetween(x - 24, 178, x + 16, 238);
+      }
+      return;
+    }
+
+    if (this.level === 6) {
+      decorations.fillStyle(0x34d399, 0.12);
+      for (let x = 0; x < this.levelWidth; x += 180) {
+        decorations.fillRect(x, 120, 96, 300);
+        decorations.fillStyle(0x6ee7b7, 0.22);
+        decorations.fillRect(x + 18, 150, 5, 220);
+        decorations.fillStyle(0x34d399, 0.12);
+      }
+      decorations.lineStyle(1, 0x5eead4, 0.32);
+      for (let y = 150; y < 440; y += 46) decorations.lineBetween(0, y, this.levelWidth, y);
     }
   }
 
@@ -968,6 +1252,8 @@ class MainScene extends Phaser.Scene {
     this.respawnPoint = { x: 100, y: 300 };
     this.isHurt = false;
     this.gameOver = false;
+    this.shieldAvailable = Boolean(this.upgrades.shield);
+    this.hintsShown = new Set();
     this.updatePlayerLimbs(0, false);
     this.updateLivesText();
   }
@@ -1077,20 +1363,38 @@ class MainScene extends Phaser.Scene {
   }
 
   checkVictory() {
-    if (this.coins.countActive(true) === 0 && this.bossDefeated) {
-      this.gameOver = true;
-      this.player.setVelocity(0, 0);
-      playTone(this, 880, 0.28, "sine", 0.06);
-      const progress = loadProgress();
-      progress.wins += 1;
-      progress.unlockedLevel = Math.min(LEVELS.length, Math.max(progress.unlockedLevel, this.level + 1));
-      const stats = this.getRunStats();
-      if (progress.bestTime === null || stats.time < progress.bestTime) {
-        progress.bestTime = stats.time;
-      }
-      saveProgress(progress);
-      this.scene.start("VictoryScene", stats);
+    if (this.coins.countActive(true) === 0 && this.bossDefeated && !this.exitReady) {
+      this.exitReady = true;
+      this.exitPortal.setTint(0x86efac);
+      this.exitPortal.setAlpha(1);
+      this.showHint("Cíl splněn — vstup do portálu!", 2600);
+      this.createBurst(this.exitPortal.x, this.exitPortal.y, 0x86efac);
     }
+  }
+
+  completeLevel() {
+    if (!this.exitReady || this.gameOver) return;
+    this.gameOver = true;
+    this.player.setVelocity(0, 0);
+    playTone(this, 880, 0.28, "sine", 0.06);
+    const progress = loadProgress();
+    progress.wins += 1;
+    progress.unlockedLevel = Math.min(LEVELS.length, Math.max(progress.unlockedLevel, this.level + 1));
+    const stats = this.getRunStats();
+    const stars = 1 + (this.lives === MAX_LIVES ? 1 : 0) + (stats.time <= TIME_CHALLENGE_SECONDS ? 1 : 0);
+    stats.stars = stars;
+    progress.stars[this.level] = Math.max(progress.stars[this.level] ?? 0, stars);
+    if (progress.bestTime === null || stats.time < progress.bestTime) progress.bestTime = stats.time;
+    saveProgress(progress);
+    this.scene.start("VictoryScene", stats);
+  }
+
+  createExitPortal() {
+    const [x, y] = this.layout.exit;
+    this.exitReady = false;
+    this.exitPortal = this.physics.add.staticImage(x, y, "portal").setDepth(1).setTint(0x475569).setAlpha(0.66);
+    this.physics.add.overlap(this.player, this.exitPortal, this.completeLevel, null, this);
+    this.add.text(x, y - 48, "EXFIL", { fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "bold", color: "#ddd6fe", stroke: "#020617", strokeThickness: 3 }).setOrigin(0.5).setDepth(3);
   }
 
   createHealthPickups() {
@@ -1121,12 +1425,14 @@ class MainScene extends Phaser.Scene {
   createProjectiles() {
     this.lastShotAt = -SHOOT_COOLDOWN;
     this.bullets = this.physics.add.group();
-    this.ammo = MAX_AMMO;
+    this.maxAmmo = MAX_AMMO + (this.upgrades.reserve ? 4 : 0);
+    this.ammo = this.maxAmmo;
     this.updateAmmoText();
   }
 
   shoot(time) {
-    if (time - this.lastShotAt < SHOOT_COOLDOWN || this.ammo === 0) {
+    const shotCooldown = this.upgrades.rapid ? 145 : SHOOT_COOLDOWN;
+    if (time - this.lastShotAt < shotCooldown || this.ammo === 0) {
       return;
     }
 
@@ -1148,6 +1454,7 @@ class MainScene extends Phaser.Scene {
       });
     });
     this.ammo -= 1;
+    this.showTutorial("shoot", "Střelba spotřebovává munici — hledej nábojnice.");
     this.updateAmmoText();
     playTone(this, 260, 0.06, "square", 0.03);
     this.lastShotAt = time;
@@ -1181,18 +1488,18 @@ class MainScene extends Phaser.Scene {
   }
 
   collectAmmo(_player, ammoPickup) {
-    if (this.ammo >= MAX_AMMO) {
+    if (this.ammo >= this.maxAmmo) {
       return;
     }
 
     ammoPickup.disableBody(true, true);
-    this.ammo = MAX_AMMO;
+    this.ammo = this.maxAmmo;
     this.updateAmmoText();
     playTone(this, 430, 0.14, "triangle", 0.05);
   }
 
   updateAmmoText() {
-    this.ammoText.setText(`NÁBOJE ${this.ammo}/${MAX_AMMO}`);
+    this.ammoText.setText(`NÁBOJE ${this.ammo}/${this.maxAmmo}`);
   }
 
   getRunStats() {
@@ -1202,6 +1509,7 @@ class MainScene extends Phaser.Scene {
       time: Math.floor((this.time.now - this.startedAt) / 1000),
       difficulty: this.difficulty,
       level: this.level,
+      stars: 0,
     };
   }
 
@@ -1241,12 +1549,85 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  showHint(message, duration = 2200) {
+    if (this.activeHint) this.activeHint.destroy();
+    this.activeHint = this.add.text(480, 120, message, {
+      fontFamily: "system-ui, sans-serif", fontSize: "16px", fontStyle: "bold", color: "#f8fafc",
+      backgroundColor: "#0b1224", padding: { x: 16, y: 9 }, stroke: "#020617", strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(30).setAlpha(0);
+    this.tweens.add({ targets: this.activeHint, alpha: 1, duration: 160, yoyo: true, hold: Math.max(300, duration - 320), onComplete: () => this.activeHint?.destroy() });
+  }
+
+  showStoryIntro() {
+    const story = [
+      "Signál z města vede k uzamčenému jádru.",
+      "Citadela skrývá cestu nad zamrzlou propastí.",
+      "Slévárna se probouzí — nenech se pohltit žárem.",
+      "Poslední brána čeká za hranou známého prostoru.",
+      "Bouřkový hřeben střeží cestu k samotnému archivu.",
+      "Archiv noci: poslední záznam čeká na odemčení.",
+    ][this.level - 1];
+    this.time.delayedCall(450, () => this.showHint(story, 3000));
+  }
+
+  startWorldMusic() {
+    if (!this.settings.music) return;
+    const notes = this.level === 3 ? [110, 147, 165] : this.level === 2 ? [262, 330, 392] : [220, 277, 330];
+    let noteIndex = 0;
+    this.musicTimer = this.time.addEvent({ delay: 820, loop: true, callback: () => {
+      if (!this.gameOver && this.settings.music) playTone(this, notes[noteIndex++ % notes.length], 0.22, "sine", 0.012, "music");
+    } });
+  }
+
   createHazards() {
     this.spikes = this.physics.add.staticGroup();
 
     this.layout.spikes.forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
+  }
+
+  createCrumblePlatforms() {
+    this.crumblePlatforms = this.physics.add.staticGroup();
+    (this.layout.crumblePlatforms ?? []).forEach(([x, y]) => {
+      const platform = this.crumblePlatforms.create(x, y, "platform").setTint(0xfbbf24).setAlpha(0.9);
+      platform.setData("crumbling", false);
+    });
+    this.physics.add.collider(this.player, this.crumblePlatforms, (_player, platform) => this.crumblePlatform(platform));
+  }
+
+  crumblePlatform(platform) {
+    if (platform.getData("crumbling")) return;
+    platform.setData("crumbling", true);
+    this.showHint("Nestabilní plošina!", 1200);
+    this.tweens.add({ targets: platform, alpha: 0.25, duration: 380, yoyo: true, repeat: 1 });
+    this.time.delayedCall(850, () => {
+      if (!platform.active) return;
+      platform.disableBody(true, true);
+      this.time.delayedCall(2300, () => { if (!platform.active) { platform.enableBody(false, platform.x, platform.y, true, true); platform.setAlpha(0.9); platform.setData("crumbling", false); } });
+    });
+  }
+
+  createLaserTraps() {
+    this.lasers = this.physics.add.staticGroup();
+    (this.layout.lasers ?? []).forEach(([x, y, phase]) => {
+      const laser = this.lasers.create(x, y, "laser").setDepth(1);
+      laser.setData({ phase, enabled: true });
+    });
+    this.physics.add.overlap(this.player, this.lasers, this.hitLaser, null, this);
+  }
+
+  updateLaserTraps(time) {
+    this.lasers?.getChildren().forEach((laser) => {
+      const enabled = Math.floor((time + laser.getData("phase")) / 1400) % 2 === 0;
+      laser.setData("enabled", enabled);
+      laser.setAlpha(enabled ? 1 : 0.18);
+      laser.body.enable = enabled;
+    });
+  }
+
+  hitLaser(_player, laser) {
+    if (laser.getData("enabled")) this.takeDamage();
   }
 
   createBarriers() {
@@ -1448,23 +1829,26 @@ class MainScene extends Phaser.Scene {
     this.bossBarFill.setVisible(isBossInView);
     this.bossBarLabel.setVisible(isBossInView);
 
+    const enraged = this.bossLives <= 3;
+    const speed = enraged ? 90 : 55;
     if (this.boss.x <= this.bossMinX) {
-      this.boss.setVelocityX(55);
+      this.boss.setVelocityX(speed);
       this.boss.setFlipX(false);
     } else if (this.boss.x >= this.bossMaxX) {
-      this.boss.setVelocityX(-55);
+      this.boss.setVelocityX(-speed);
       this.boss.setFlipX(true);
     }
 
     if (time >= this.bossNextShotAt) {
       const direction = this.player.x < this.boss.x ? -1 : 1;
       this.fireEnemyBullet(this.boss, direction);
-      this.bossNextShotAt = time + 1050;
+      this.bossNextShotAt = time + (enraged ? 620 : 1050);
     }
 
     const pulse = Math.sin(time * 0.008) * 0.04;
     this.boss.setScale(1 + pulse, 1 - pulse);
     this.bossHealthText.setPosition(this.boss.x, this.boss.y - 58);
+    if (enraged) this.boss.setTint(0xfb7185);
   }
 
   damageBoss(firstObject, secondObject) {
@@ -1497,9 +1881,7 @@ class MainScene extends Phaser.Scene {
     this.bossBarFill.displayWidth = 256 * (this.bossLives / BOSS_LIVES);
     boss.setTint(0xfef08a);
     this.time.delayedCall(120, () => {
-      if (boss.active) {
-        boss.clearTint();
-      }
+      if (boss.active && this.bossLives > 3) boss.clearTint();
     });
   }
 
@@ -1516,8 +1898,13 @@ class MainScene extends Phaser.Scene {
 
     enemy.setData({ ...config, healthText });
     enemy.setDepth(1);
-    enemy.setVelocityX(config.type === "patrol" ? config.speed : 0);
-    this.physics.add.collider(enemy, this.platforms);
+    if (config.type === "drone") {
+      enemy.body.setAllowGravity(false);
+      enemy.setVelocityX(config.speed);
+    } else {
+      enemy.setVelocityX(["patrol", "skater", "bomber", "phase"].includes(config.type) ? config.speed : 0);
+      this.physics.add.collider(enemy, this.platforms);
+    }
     return enemy;
   }
 
@@ -1532,7 +1919,7 @@ class MainScene extends Phaser.Scene {
       const minX = enemy.getData("minX");
       const maxX = enemy.getData("maxX");
 
-      if (type === "patrol") {
+      if (["patrol", "skater", "bomber", "phase"].includes(type)) {
         if (enemy.x <= minX) {
           enemy.setVelocityX(speed);
           enemy.setFlipX(false);
@@ -1540,6 +1927,38 @@ class MainScene extends Phaser.Scene {
           enemy.setVelocityX(-speed);
           enemy.setFlipX(true);
         }
+      }
+
+      if (type === "drone") {
+        if (enemy.x <= minX) {
+          enemy.setVelocityX(speed);
+          enemy.setFlipX(false);
+        } else if (enemy.x >= maxX) {
+          enemy.setVelocityX(-speed);
+          enemy.setFlipX(true);
+        }
+        enemy.setY(enemy.getData("hoverY") + Math.sin(time * 0.005 + enemy.x * 0.02) * 18);
+        enemy.body.updateFromGameObject();
+        if (time >= enemy.getData("nextActionAt")) {
+          const direction = this.player.x < enemy.x ? -1 : 1;
+          this.fireEnemyBullet(enemy, direction);
+          this.fireEnemyBullet(enemy, direction, -70);
+          enemy.setData("nextActionAt", time + 1800);
+        }
+      }
+
+      if (type === "bomber" && Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y) < 58) {
+        this.explodeBomber(enemy);
+        return;
+      }
+
+      if (type === "phase" && time >= enemy.getData("nextActionAt")) {
+        const targetX = Phaser.Math.Clamp(this.player.x + (this.player.x < enemy.x ? 90 : -90), minX, maxX);
+        this.createBurst(enemy.x, enemy.y, 0xc4b5fd);
+        enemy.setPosition(targetX, enemy.y);
+        enemy.body.updateFromGameObject();
+        enemy.setData("nextActionAt", time + 1750);
+        playTone(this, 680, 0.08, "sine", 0.025);
       }
 
       if (type === "hopper") {
@@ -1592,19 +2011,56 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
+    if (type === "skater") {
+      const glide = Math.sin(phase * 1.8);
+      enemy.setScale(1.05, 0.93);
+      enemy.setAngle(glide * 4);
+      return;
+    }
+
+    if (type === "bomber") {
+      const warning = 1 + Math.sin(time * 0.012) * 0.07;
+      enemy.setScale(warning);
+      enemy.setAngle(0);
+      return;
+    }
+
+    if (type === "drone") {
+      enemy.setScale(1 + Math.sin(time * 0.008) * 0.06);
+      enemy.setAngle(Math.sin(time * 0.008) * 3);
+      return;
+    }
+
+    if (type === "phase") {
+      const flicker = 0.72 + Math.sin(time * 0.015) * 0.24;
+      enemy.setAlpha(flicker);
+      enemy.setScale(1 + Math.sin(time * 0.01) * 0.06);
+      return;
+    }
+
     const pulse = Math.sin(time * 0.006 + enemy.x * 0.02);
     enemy.setScale(1 + pulse * 0.025, 1 - pulse * 0.025);
     enemy.setAngle(pulse * 1.5);
   }
 
-  fireEnemyBullet(enemy, direction) {
+  explodeBomber(enemy) {
+    if (!enemy.active) return;
+    enemy.disableBody(true, true);
+    enemy.getData("healthText").destroy();
+    this.createBurst(enemy.x, enemy.y, 0xf97316);
+    this.createBurst(enemy.x, enemy.y, 0xfef08a);
+    this.takeDamage();
+    playTone(this, 100, 0.25, "sawtooth", 0.07);
+  }
+
+  fireEnemyBullet(enemy, direction, verticalSpeed = 0) {
     const bullet = this.enemyBullets.create(
       enemy.x + direction * 25,
       enemy.y,
       "enemyBullet",
     );
     bullet.body.allowGravity = false;
-    bullet.setVelocityX(direction * ENEMY_BULLET_SPEED);
+    bullet.setVelocity(direction * ENEMY_BULLET_SPEED, verticalSpeed);
 
     this.time.delayedCall(3500, () => {
       if (bullet.active) {
@@ -1662,9 +2118,17 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
+    if (this.shieldAvailable) {
+      this.shieldAvailable = false;
+      this.showHint("Nouzový štít pohltil zásah!", 1800);
+      this.createBurst(this.player.x, this.player.y, 0x67e8f9);
+      return;
+    }
+
     this.lives -= 1;
     this.updateLivesText();
     playTone(this, 150, 0.18, "sawtooth", 0.06);
+    if (this.settings.shake) this.cameras.main.shake(120, 0.008);
 
     if (this.lives === 0) {
       this.gameOver = true;
@@ -1707,12 +2171,19 @@ class MainScene extends Phaser.Scene {
     this.nextDashAt = time + DASH_COOLDOWN;
     this.player.setVelocityX(direction * DASH_SPEED);
     this.player.setTint(0x67e8f9);
+    this.showTutorial("dash", "Dash překoná krátké nebezpečné úseky.");
     playTone(this, 390, 0.1, "sawtooth", 0.035);
   }
 
   pauseGame() {
     this.scene.pause();
     this.scene.launch("PauseScene");
+  }
+
+  showTutorial(key, message) {
+    if (this.hintsShown?.has(key)) return;
+    this.hintsShown.add(key);
+    this.showHint(message, 2400);
   }
 
   update(time, delta) {
@@ -1722,6 +2193,7 @@ class MainScene extends Phaser.Scene {
     }
 
     this.updateMovingPlatforms(time);
+    this.updateLaserTraps(time);
     this.updateEnemies(time);
     this.updateBoss(time);
     this.updateRunHud(time);
@@ -1770,6 +2242,7 @@ class MainScene extends Phaser.Scene {
 
     if (jumpPressed && this.jumpsRemaining > 0) {
       this.player.setVelocityY(JUMP_VELOCITY);
+      if (this.jumpsRemaining === 1) this.showTutorial("doubleJump", "Druhý skok ve vzduchu prodlouží dosah.");
       this.jumpsRemaining -= 1;
     }
 
@@ -1794,5 +2267,5 @@ new Phaser.Game({
       debug: false,
     },
   },
-  scene: [MenuScene, MainScene, PauseScene, GameOverScene, VictoryScene],
+  scene: [MenuScene, MainScene, PauseScene, GameOverScene, VictoryScene, UpgradeScene, SettingsScene],
 });
