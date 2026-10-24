@@ -7,8 +7,7 @@ const JUMP_VELOCITY = -520;
 const BULLET_SPEED = 560;
 const SHOOT_COOLDOWN = 220;
 const ENEMY_SPEED = 70;
-const ENEMY_PATROL_MIN_X = 320;
-const ENEMY_PATROL_MAX_X = 520;
+const ENEMY_BULLET_SPEED = 180;
 
 class MenuScene extends Phaser.Scene {
   constructor() {
@@ -232,7 +231,7 @@ class MainScene extends Phaser.Scene {
     this.createCollectibles();
     this.createHealthPickups();
     this.createHazards();
-    this.createEnemy();
+    this.createEnemies();
     this.createControls();
   }
 
@@ -307,6 +306,39 @@ class MainScene extends Phaser.Scene {
     graphics.fillCircle(11, 12, 1.5);
     graphics.fillCircle(25, 12, 1.5);
     graphics.generateTexture("enemy", 36, 42);
+    graphics.clear();
+
+    graphics.fillStyle(0x8b5cf6);
+    graphics.fillRoundedRect(0, 5, 34, 33, 12);
+    graphics.fillStyle(0xc4b5fd);
+    graphics.fillRect(5, 25, 24, 8);
+    graphics.fillStyle(0xffffff);
+    graphics.fillCircle(10, 15, 4);
+    graphics.fillCircle(24, 15, 4);
+    graphics.fillStyle(0x312e81);
+    graphics.fillCircle(10, 15, 1.5);
+    graphics.fillCircle(24, 15, 1.5);
+    graphics.generateTexture("hopper", 34, 38);
+    graphics.clear();
+
+    graphics.fillStyle(0xf97316);
+    graphics.fillRoundedRect(0, 8, 40, 26, 7);
+    graphics.fillStyle(0x7c2d12);
+    graphics.fillRect(8, 3, 24, 8);
+    graphics.fillStyle(0xfef3c7);
+    graphics.fillCircle(13, 21, 4);
+    graphics.fillCircle(27, 21, 4);
+    graphics.fillStyle(0x431407);
+    graphics.fillCircle(13, 21, 1.5);
+    graphics.fillCircle(27, 21, 1.5);
+    graphics.generateTexture("sentry", 40, 34);
+    graphics.clear();
+
+    graphics.fillStyle(0xfb7185);
+    graphics.fillRoundedRect(0, 0, 14, 8, 4);
+    graphics.fillStyle(0xfef3c7);
+    graphics.fillCircle(10, 4, 2);
+    graphics.generateTexture("enemyBullet", 14, 8);
     graphics.clear();
 
     graphics.fillStyle(0x334155);
@@ -550,13 +582,49 @@ class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
   }
 
-  createEnemy() {
-    this.enemyLives = 2;
-    this.enemy = this.physics.add.sprite(420, 280, "enemy");
-    this.enemy.setVelocityX(ENEMY_SPEED);
-    this.physics.add.collider(this.enemy, this.platforms);
+  createEnemies() {
+    this.enemies = this.physics.add.group();
+    this.enemyBullets = this.physics.add.group();
 
-    this.enemyHealthText = this.add.text(420, 245, "♥♥", {
+    this.createEnemy({
+      x: 420,
+      y: 280,
+      texture: "enemy",
+      type: "patrol",
+      lives: 2,
+      minX: 320,
+      maxX: 520,
+      speed: ENEMY_SPEED,
+    });
+    this.createEnemy({
+      x: 1350,
+      y: 285,
+      texture: "hopper",
+      type: "hopper",
+      lives: 1,
+      minX: 1245,
+      maxX: 1455,
+      speed: 95,
+      nextActionAt: 700,
+    });
+    this.createEnemy({
+      x: 1800,
+      y: 348,
+      texture: "sentry",
+      type: "sentry",
+      lives: 3,
+      nextActionAt: 1200,
+    });
+
+    this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
+    this.physics.add.overlap(this.bullets, this.enemies, this.damageEnemy, null, this);
+    this.physics.add.overlap(this.player, this.enemyBullets, this.hitEnemyBullet, null, this);
+    this.physics.add.collider(this.enemyBullets, this.platforms, (bullet) => bullet.destroy());
+  }
+
+  createEnemy(config) {
+    const enemy = this.enemies.create(config.x, config.y, config.texture);
+    const healthText = this.add.text(config.x, config.y - 34, "♥".repeat(config.lives), {
       fontFamily: "system-ui, sans-serif",
       fontSize: "18px",
       fontStyle: "bold",
@@ -565,52 +633,109 @@ class MainScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0.5);
 
-    this.physics.add.overlap(this.player, this.enemy, this.hitEnemy, null, this);
-    this.physics.add.overlap(this.bullets, this.enemy, this.damageEnemy, null, this);
+    enemy.setData({ ...config, healthText });
+    enemy.setVelocityX(config.type === "patrol" ? config.speed : 0);
+    this.physics.add.collider(enemy, this.platforms);
+    return enemy;
   }
 
-  updateEnemy() {
-    if (!this.enemy?.active) {
-      return;
-    }
+  updateEnemies(time) {
+    this.enemies.getChildren().forEach((enemy) => {
+      if (!enemy.active) {
+        return;
+      }
 
-    if (this.enemy.x <= ENEMY_PATROL_MIN_X) {
-      this.enemy.setVelocityX(ENEMY_SPEED);
-      this.enemy.setFlipX(false);
-    } else if (this.enemy.x >= ENEMY_PATROL_MAX_X) {
-      this.enemy.setVelocityX(-ENEMY_SPEED);
-      this.enemy.setFlipX(true);
-    }
+      const type = enemy.getData("type");
+      const speed = enemy.getData("speed") ?? 0;
+      const minX = enemy.getData("minX");
+      const maxX = enemy.getData("maxX");
 
-    this.enemyHealthText.setPosition(this.enemy.x, this.enemy.y - 34);
+      if (type === "patrol") {
+        if (enemy.x <= minX) {
+          enemy.setVelocityX(speed);
+          enemy.setFlipX(false);
+        } else if (enemy.x >= maxX) {
+          enemy.setVelocityX(-speed);
+          enemy.setFlipX(true);
+        }
+      }
+
+      if (type === "hopper") {
+        if (enemy.x <= minX) {
+          enemy.setVelocityX(speed);
+          enemy.setFlipX(false);
+        } else if (enemy.x >= maxX) {
+          enemy.setVelocityX(-speed);
+          enemy.setFlipX(true);
+        }
+
+        if (time >= enemy.getData("nextActionAt") && enemy.body.blocked.down) {
+          enemy.setVelocityY(-430);
+          enemy.setVelocityX(enemy.flipX ? -speed : speed);
+          enemy.setData("nextActionAt", time + 1250);
+        }
+      }
+
+      if (type === "sentry" && time >= enemy.getData("nextActionAt")) {
+        const direction = this.player.x < enemy.x ? -1 : 1;
+        enemy.setFlipX(direction < 0);
+        this.fireEnemyBullet(enemy, direction);
+        enemy.setData("nextActionAt", time + 1700);
+      }
+
+      enemy.getData("healthText").setPosition(enemy.x, enemy.y - 34);
+    });
+  }
+
+  fireEnemyBullet(enemy, direction) {
+    const bullet = this.enemyBullets.create(
+      enemy.x + direction * 25,
+      enemy.y,
+      "enemyBullet",
+    );
+    bullet.body.allowGravity = false;
+    bullet.setVelocityX(direction * ENEMY_BULLET_SPEED);
+
+    this.time.delayedCall(3500, () => {
+      if (bullet.active) {
+        bullet.destroy();
+      }
+    });
   }
 
   hitEnemy() {
     this.takeDamage();
   }
 
-  damageEnemy(firstObject, secondObject) {
-    const bullet = firstObject === this.enemy ? secondObject : firstObject;
+  hitEnemyBullet(_player, bullet) {
+    bullet.destroy();
+    this.takeDamage();
+  }
 
-    if (!this.enemy.active || !bullet.active) {
+  damageEnemy(firstObject, secondObject) {
+    const enemy = firstObject.getData?.("type") ? firstObject : secondObject;
+    const bullet = enemy === firstObject ? secondObject : firstObject;
+
+    if (!enemy.active || !bullet.active) {
       return;
     }
 
     bullet.destroy();
 
-    this.enemyLives -= 1;
+    const remainingLives = enemy.getData("lives") - 1;
+    enemy.setData("lives", remainingLives);
 
-    if (this.enemyLives === 0) {
-      this.enemy.disableBody(true, true);
-      this.enemyHealthText.destroy();
+    if (remainingLives === 0) {
+      enemy.disableBody(true, true);
+      enemy.getData("healthText").destroy();
       return;
     }
 
-    this.enemyHealthText.setText("♥");
-    this.enemy.setTint(0xfca5a5);
+    enemy.getData("healthText").setText("♥".repeat(remainingLives));
+    enemy.setTint(0xfca5a5);
     this.time.delayedCall(140, () => {
-      if (this.enemy.active) {
-        this.enemy.clearTint();
+      if (enemy.active) {
+        enemy.clearTint();
       }
     });
   }
@@ -667,7 +792,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.updateEnemy();
+    this.updateEnemies(time);
 
     if (this.gameOver || this.isHurt) {
       return;
