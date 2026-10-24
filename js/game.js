@@ -307,6 +307,7 @@ class MainScene extends Phaser.Scene {
     this.createHealthPickups();
     this.createAmmoPickups();
     this.createHazards();
+    this.createBarriers();
     this.createCheckpoints();
     this.createEnemies();
     this.createControls();
@@ -485,6 +486,24 @@ class MainScene extends Phaser.Scene {
     graphics.clear();
 
     graphics.fillStyle(0x020617);
+    graphics.fillRect(0, 0, 56, 96);
+    graphics.fillStyle(0x1e293b);
+    graphics.fillRect(5, 3, 46, 90);
+    graphics.fillStyle(0x0e7490);
+    graphics.fillRect(8, 7, 40, 82);
+    graphics.fillStyle(0x22d3ee, 0.8);
+    graphics.fillRect(12, 10, 6, 76);
+    graphics.fillRect(38, 10, 6, 76);
+    graphics.fillStyle(0x164e63);
+    graphics.fillRect(20, 10, 16, 76);
+    graphics.fillStyle(0xa5f3fc);
+    graphics.fillRect(23, 18, 10, 6);
+    graphics.fillRect(23, 42, 10, 6);
+    graphics.fillRect(23, 66, 10, 6);
+    graphics.generateTexture("barrier", 56, 96);
+    graphics.clear();
+
+    graphics.fillStyle(0x020617);
     graphics.fillRoundedRect(0, 3, 29, 9, 3);
     graphics.fillStyle(0x64748b);
     graphics.fillRoundedRect(2, 2, 25, 6, 2);
@@ -540,7 +559,19 @@ class MainScene extends Phaser.Scene {
     [[120, 88], [480, 145], [780, 78], [1120, 115], [1420, 70], [1740, 145], [2050, 92], [2380, 140], [2680, 76], [3020, 112], [3360, 70], [3680, 145], [4050, 86], [4380, 130], [4720, 75], [5070, 120], [5420, 90], [5680, 145]].forEach(([x, y]) => {
       clouds.fillCircle(x, y, 22);
       clouds.fillCircle(x + 27, y - 10, 30);
-      clouds.fillCircle(x + 57, y, 20);
+    clouds.fillCircle(x + 57, y, 20);
+    });
+
+    const gateArchitecture = this.add.graphics().setDepth(-2);
+    [1950, 3850, 4800, 5600].forEach((x) => {
+      gateArchitecture.fillStyle(0x0b1128, 0.9);
+      gateArchitecture.fillRect(x - 46, 160, 92, 344);
+      gateArchitecture.fillStyle(0x155e75, 0.8);
+      gateArchitecture.fillRect(x - 42, 170, 7, 324);
+      gateArchitecture.fillRect(x + 35, 170, 7, 324);
+      gateArchitecture.fillStyle(0x22d3ee, 0.55);
+      gateArchitecture.fillRect(x - 42, 175, 7, 76);
+      gateArchitecture.fillRect(x + 35, 175, 7, 76);
     });
 
     this.platforms = this.physics.add.staticGroup();
@@ -889,6 +920,62 @@ class MainScene extends Phaser.Scene {
     ].forEach(([x, y]) => this.spikes.create(x, y, "spikes"));
 
     this.physics.add.overlap(this.player, this.spikes, this.hitSpikes, null, this);
+  }
+
+  createBarriers() {
+    this.barriers = this.physics.add.staticGroup();
+
+    this.addBarrier(1950, 3);
+    this.addBarrier(3850, 4);
+    this.addBarrier(4800, 4);
+    this.addBarrier(5600, 5);
+
+    this.physics.add.collider(this.player, this.barriers);
+    this.physics.add.overlap(this.bullets, this.barriers, this.damageBarrier, null, this);
+  }
+
+  addBarrier(x, lives) {
+    const barrier = this.barriers.create(x, 344, "barrier");
+    barrier.setDisplaySize(56, 320);
+    barrier.setDepth(1);
+    barrier.refreshBody();
+    const healthText = this.add.text(x, 158, `Štít: ${lives}`, {
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "16px",
+      fontStyle: "bold",
+      color: "#a5f3fc",
+      stroke: "#020617",
+      strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(4);
+
+    barrier.setData({ lives, healthText });
+  }
+
+  damageBarrier(firstObject, secondObject) {
+    const barrier = firstObject.getData?.("lives") ? firstObject : secondObject;
+    const bullet = barrier === firstObject ? secondObject : firstObject;
+
+    if (!barrier.active || !bullet.active) {
+      return;
+    }
+
+    bullet.destroy();
+    const remainingLives = barrier.getData("lives") - 1;
+    barrier.setData("lives", remainingLives);
+
+    if (remainingLives === 0) {
+      barrier.disableBody(true, true);
+      barrier.getData("healthText").destroy();
+      return;
+    }
+
+    barrier.getData("healthText").setText(`Štít: ${remainingLives}`);
+    barrier.setTint(0xfef08a);
+    this.time.delayedCall(120, () => {
+      if (barrier.active) {
+        barrier.clearTint();
+      }
+    });
   }
 
   createCheckpoints() {
