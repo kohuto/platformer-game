@@ -390,6 +390,7 @@ class MainScene extends Phaser.Scene {
     this.weapon = this.add.image(this.player.x + 24, this.player.y + 4, "weapon")
       .setDepth(2);
     this.walkCycle = 0;
+    this.jumpsRemaining = 2;
     this.lives = MAX_LIVES;
     this.isHurt = false;
     this.gameOver = false;
@@ -636,6 +637,7 @@ class MainScene extends Phaser.Scene {
     this.isHurt = true;
     this.player.setPosition(100, 300);
     this.player.setVelocity(0, 0);
+    this.jumpsRemaining = 2;
     this.player.setTint(0xef4444);
     this.updateWeapon();
     this.updatePlayerLimbs(0, false);
@@ -649,6 +651,7 @@ class MainScene extends Phaser.Scene {
   createControls() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys("W,A,D");
+    this.jumpKeys = [this.cursors.up, this.wasd.W, this.cursors.space];
     this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
   }
@@ -672,7 +675,7 @@ class MainScene extends Phaser.Scene {
 
     const movingLeft = this.cursors.left.isDown || this.wasd.A.isDown;
     const movingRight = this.cursors.right.isDown || this.wasd.D.isDown;
-    const jumping = this.cursors.up.isDown || this.wasd.W.isDown || this.cursors.space.isDown;
+    const jumpPressed = this.jumpKeys.some((key) => Phaser.Input.Keyboard.JustDown(key));
 
     if (movingLeft) {
       this.player.setVelocityX(-PLAYER_SPEED);
@@ -684,8 +687,13 @@ class MainScene extends Phaser.Scene {
       this.player.setVelocityX(0);
     }
 
-    if (jumping && this.player.body.blocked.down) {
+    if (this.player.body.blocked.down) {
+      this.jumpsRemaining = 2;
+    }
+
+    if (jumpPressed && this.jumpsRemaining > 0) {
       this.player.setVelocityY(JUMP_VELOCITY);
+      this.jumpsRemaining -= 1;
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.shootKey)) {
